@@ -254,5 +254,10 @@ and under the root directory run:
 make run ENABLE_WEBHOOKS=false
 ```
 
+The project requires a valid ssh key to exist at $HOME/slipwaykey
+kustomize will support hhtp pulls but only on pulic repositories. So consider that when setting "path"
+on an operation.
+
+
 This project is in it's very early stages and contributions are welcome.
 
