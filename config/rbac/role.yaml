@@ -1,0 +1,40 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- apiGroups:
+  - git.gitops.slipway.org
+  resources:
+  - gitrepoes
+  verbs:
+  - get
+- apiGroups:
+  - git.gitops.slipway.org
+  resources:
+  - hashes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - git.gitops.slipway.org
+  resources:
+  - hashes/status
+  verbs:
+  - get
+  - patch
+  - update

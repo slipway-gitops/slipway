@@ -1,0 +1,26 @@
+# permissions to do edit gitrepoes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gitrepo-editor-role
+rules:
+- apiGroups:
+  - git.gitops.slipway.org
+  resources:
+  - gitrepoes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - git.gitops.slipway.org
+  resources:
+  - gitrepoes/status
+  verbs:
+  - get
+  - patch
+  - update

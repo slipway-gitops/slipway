@@ -1,0 +1,10 @@
+domain: gitops.slipway.org
+repo: github.com/slipway-gitops/slipway
+resources:
+- group: git
+  kind: GitRepo
+  version: v1
+- group: git
+  kind: Hash
+  version: v1
+version: "2"

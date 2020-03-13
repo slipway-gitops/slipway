@@ -1,0 +1,183 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.4
+  creationTimestamp: null
+  name: gitrepos.git.gitops.slipway.org
+spec:
+  group: git.gitops.slipway.org
+  names:
+    kind: GitRepo
+    listKind: GitRepoList
+    plural: gitrepos
+    singular: gitrepo
+  scope: Cluster
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: GitRepo is the Schema for the gitrepoes API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: GitRepoSpec defines the desired state of GitRepo
+          properties:
+            operations:
+              description: 'Operations: list of Operations'
+              items:
+                description: Operation defines how you should react to new Hash CRDS.
+                properties:
+                  cluster:
+                    description: Target cluster.
+                    type: string
+                  operation:
+                    description: Name of the operation.
+                    type: string
+                  optype:
+                    description: Type of Operation kubebuilder:validation:MinLength=1
+                    type: string
+                  overlay:
+                    description: 'Overlay to run TODO: Add interpolation.'
+                    type: string
+                  path:
+                    description: Path to kustomize files.
+                    type: string
+                  reference:
+                    description: Type Reference
+                    type: string
+                  weight:
+                    description: Weight to determin order
+                    format: int64
+                    type: integer
+                required:
+                - cluster
+                - operation
+                - optype
+                - path
+                type: object
+              type: array
+            security:
+              description: 'Security is security method to repo. TODO: some sort of
+                security access to git here'
+              type: string
+            uri:
+              description: Uri is the location of the repo.
+              type: string
+          required:
+          - operations
+          - security
+          - uri
+          type: object
+        status:
+          description: GitRepoStatus defines the observed state of GitRepo
+          properties:
+            Sha:
+              description: A list of pointers to all associated Hash CRDS.
+              items:
+                description: Hash is the Schema for the hashes API
+                properties:
+                  apiVersion:
+                    description: 'APIVersion defines the versioned schema of this
+                      representation of an object. Servers should convert recognized
+                      schemas to the latest internal value, and may reject unrecognized
+                      values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+                    type: string
+                  kind:
+                    description: 'Kind is a string value representing the REST resource
+                      this object represents. Servers may infer this from the endpoint
+                      the client submits requests to. Cannot be updated. In CamelCase.
+                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                    type: string
+                  metadata:
+                    type: object
+                  spec:
+                    description: HashSpec defines the desired state of Hash
+                    properties:
+                      gitrepo:
+                        description: Reference to parent GitRepo CRD.
+                        type: string
+                      operations:
+                        description: Operations to perform
+                        items:
+                          description: Operation defines how you should react to new
+                            Hash CRDS.
+                          properties:
+                            cluster:
+                              description: Target cluster.
+                              type: string
+                            operation:
+                              description: Name of the operation.
+                              type: string
+                            optype:
+                              description: Type of Operation kubebuilder:validation:MinLength=1
+                              type: string
+                            overlay:
+                              description: 'Overlay to run TODO: Add interpolation.'
+                              type: string
+                            path:
+                              description: Path to kustomize files.
+                              type: string
+                            reference:
+                              description: Type Reference
+                              type: string
+                            weight:
+                              description: Weight to determin order
+                              format: int64
+                              type: integer
+                          required:
+                          - cluster
+                          - operation
+                          - optype
+                          - path
+                          type: object
+                        type: array
+                      sha:
+                        description: Sha is the has of the commit.
+                        type: string
+                    required:
+                    - gitrepo
+                    - operations
+                    - sha
+                    type: object
+                  status:
+                    description: HashStatus defines the observed state of Hash
+                    properties:
+                      shastatus:
+                        description: ShaStatus replaced, removed, active
+                        type: string
+                    required:
+                    - shastatus
+                    type: object
+                type: object
+              type: array
+            lastSync:
+              description: Information when was the last time the git repo was scanned.
+              format: date-time
+              type: string
+          type: object
+      type: object
+  version: v1
+  versions:
+  - name: v1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

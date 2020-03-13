@@ -1,0 +1,9 @@
+apiVersion: git.gitops.slipway.org/v1
+kind: Hash
+metadata:
+  name: hash-sample
+spec:
+  # Add fields here
+  sha: 132e18d10adc3e855d29f4400cd1b4f44561f2eb
+  commitmessage: hi
+  gitrepo: gitrepo-sample

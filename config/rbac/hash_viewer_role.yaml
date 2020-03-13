@@ -1,0 +1,20 @@
+# permissions to do viewer hashes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hash-viewer-role
+rules:
+- apiGroups:
+  - git.gitops.slipway.org
+  resources:
+  - hashes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - git.gitops.slipway.org
+  resources:
+  - hashes/status
+  verbs:
+  - get
