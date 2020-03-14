@@ -157,6 +157,29 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				ns := corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{Name: val},
 				}
+				if err := ctrl.SetControllerReference(
+					&hash,
+					&ns,
+					r.Scheme); err != nil {
+					log.Error(err,
+						"unable to create namespace for hash",
+						"hash",
+						hash,
+						"namespace",
+						ns)
+					return ctrl.Result{}, err
+				}
+				if objRef, err := ref.GetReference(
+					r.Scheme,
+					&ns); err != nil {
+					log.Error(err,
+						"unable to make reference to active objects",
+						"object",
+						ns)
+				} else {
+					hash.Status.Objects = append(hash.Status.Objects, *objRef)
+				}
+
 				_, err := controllerutil.CreateOrUpdate(
 					context.TODO(),
 					r,
@@ -164,7 +187,11 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					func() error { return nil },
 				)
 				if err != nil {
-					log.Error(err, "unable to transform")
+					log.Error(err, "unable to add namespace for transform",
+						"hash",
+						hash,
+						"namespace",
+						ns)
 					return ctrl.Result{}, err
 				}
 
