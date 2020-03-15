@@ -50,6 +50,9 @@ type Operation struct {
 	Name string `json:"operation"`
 	// Path to kustomize files.
 	Path string `json:"path"`
+	// HashPath adds a kustomize ref of the commit hash to the end of the Path
+	// +optional
+	HashPath bool `json:"hashpath"`
 	// Weight to determin order
 	// +optional
 	Weight *int64 `json:"weight,omitempty"`

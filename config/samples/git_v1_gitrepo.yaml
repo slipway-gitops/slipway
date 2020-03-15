@@ -18,7 +18,11 @@ spec:
         - type: namespace
           value: branch
     - operation: test2
-      path: "git@github.com:jasonrichardsmith/slipway-examples.git//kustomize/base/?ref=testpr"
+      path: "git@github.com:jasonrichardsmith/slipway-examples.git//kustomize/base/"
+      hashpath: true
       weight: 3
       optype: branch
       reference: testpr
+      transformers:
+        - type: namespace
+          value: hash

@@ -93,6 +93,7 @@ spec:
   operations:
     - operation: test
       path: "git@github.com:slipway-gitops/slipway-examples.git//kustomize/base"
+      hashpath: true 
       weight: 3
       optype: branch
       reference: m[a-z]+r
@@ -132,6 +133,8 @@ given a weight to establish some semblance of order (waiting has not been built)
 ***Operation*** The unique name
 
 ***Path*** Path to the kustomize folder to execute
+
+***HashPath*** HashPath appends "?ref=" with the commit hash to explicitly pull from your commit
 
 ***Weight*** Higher values executed first
 

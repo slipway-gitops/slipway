@@ -41,6 +41,10 @@ spec:
               items:
                 description: Operation defines how you should react to new Hash CRDS.
                 properties:
+                  hashpath:
+                    description: HashPath adds a kustomize ref of the commit hash
+                      to the end of the Path
+                    type: boolean
                   operation:
                     description: Name of the operation.
                     type: string

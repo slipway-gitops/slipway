@@ -79,8 +79,11 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	})
 	hash.Status.Objects = nil
 	for _, operation := range hash.Spec.Operations {
-
-		m, err := k.Run(operation.Path)
+		path := operation.Path
+		if operation.HashPath {
+			path = fmt.Sprintf("%v?ref=%v", path, hash.Name)
+		}
+		m, err := k.Run(path)
 		if err != nil {
 			log.Error(err, "unable to fetch kustomize manifests")
 			return ctrl.Result{}, err
