@@ -26,6 +26,9 @@ import (
 
 	"github.com/go-logr/logr"
 	"golang.org/x/crypto/ssh"
+	gitclientconfig "gopkg.in/src-d/go-git.v4/config"
+	gitclientmem "gopkg.in/src-d/go-git.v4/storage/memory"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -36,7 +39,6 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	gitv1 "github.com/slipway-gitops/slipway/api/v1"
-	"gopkg.in/src-d/go-git.v4"
 	gitclient "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/transport"
 	gitssh "gopkg.in/src-d/go-git.v4/plumbing/transport/ssh"
@@ -83,12 +85,14 @@ func (r *GitRepoReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return returnResult, client.IgnoreNotFound(err)
 	}
 
-	remote, err := GetRemote(repo)
+	remote := GetRemote(repo)
+	auth, err := get_ssh_key_auth()
 	if err != nil {
-		log.Error(err, "remote access error")
+		log.Error(err, "Unable to parse ssh key")
 		return returnResult, nil
 	}
-	refs, err := remote.List(&gitclient.ListOptions{})
+
+	refs, err := remote.List(&gitclient.ListOptions{Auth: auth})
 	if err != nil {
 		log.Error(err, "remote access error")
 		return returnResult, nil
@@ -287,34 +291,45 @@ func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func GetRemote(g gitv1.GitRepo) (remote *gitclient.Remote, err error) {
-	dir, err := ioutil.TempDir("", "clone-example")
-	if err != nil {
-		return
-	}
-	defer os.RemoveAll(dir)
+func GetRemote(g gitv1.GitRepo) (remote *gitclient.Remote) {
+	storer := gitclientmem.NewStorage()
+	remote = gitclient.NewRemote(storer, &gitclientconfig.RemoteConfig{
+		Name: "origin",
+		URLs: []string{g.Spec.Uri},
+	})
+	/*
+		dir, err := ioutil.TempDir("", "clone-example")
+		if err != nil {
+			return
+		}
+		defer os.RemoveAll(dir)
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return
+		}
+		auth, err := get_ssh_key_auth(fmt.Sprintf("%s/slipwaykey", home))
+		if err != nil {
+			return
+		}
+		rep, err := gitclient.PlainClone(dir, true, &git.CloneOptions{
+			URL:  g.Spec.Uri,
+			Auth: auth,
+		})
+		if err != nil {
+			return
+		}
+		remote, err = rep.Remote("origin")
+
+	*/
+	return
+}
+
+func get_ssh_key_auth() (auth transport.AuthMethod, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return
 	}
-	auth, err := get_ssh_key_auth(fmt.Sprintf("%s/slipwaykey", home))
-	if err != nil {
-		return
-	}
-	rep, err := gitclient.PlainClone(dir, true, &git.CloneOptions{
-		URL:  g.Spec.Uri,
-		Auth: auth,
-	})
-	if err != nil {
-		return
-	}
-	remote, err = rep.Remote("origin")
-
-	return
-}
-
-func get_ssh_key_auth(privateSshKeyFile string) (transport.AuthMethod, error) {
-	var auth transport.AuthMethod
+	privateSshKeyFile := fmt.Sprintf("%s/.ssh/id_rsa", home)
 	sshKey, err := ioutil.ReadFile(privateSshKeyFile)
 	if err != nil {
 		return auth, err

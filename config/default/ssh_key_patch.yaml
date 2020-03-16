@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        volumeMounts:
+        - name: slipwaykey
+          mountPath: "/home/nonroot/.ssh/id_rsa"
+          subPath: "id_rsa"
+        - name: known-hosts
+          mountPath: "/home/nonroot/.ssh/known_hosts"
+          subPath: known_hosts
+      volumes:
+      - name: slipwaykey
+        secret:
+          secretName: slipwaykey
+      - name: known-hosts
+        configMap:
+          name: known-hosts

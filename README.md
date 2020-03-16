@@ -248,18 +248,21 @@ Many of the fields are copied from the operations in the GitRepo.
 
 
 ## Running
-This project is currently under development and is not intended for use.
+This project is currently under development and is not intended for production use.
 
-This project is built on kubebuilder. 
-To run this project under a development environment starts up a cluster (minikube)
+To deploy the controller into a cluster please proceed to the [DEPLOY.md](DEPLOY.md)
+
+To run this for development with kubebuilder.
+Start up a cluster (minikube)
 and under the root directory run:
 ```
 make run ENABLE_WEBHOOKS=false
 ```
 
-The project requires a valid ssh key to exist at $HOME/slipwaykey
-kustomize will support hhtp pulls but only on pulic repositories. So consider that when setting "path"
-on an operation.
+The project requires a valid ssh key to exist at $HOME/.ssh/id_rsa
+
+kustomize ("path" settings)will support http pulls but only on public repositories.
+So consider that when setting "path" on an operation.
 
 
 This project is in it's very early stages and contributions are welcome.
