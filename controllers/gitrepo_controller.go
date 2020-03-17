@@ -54,8 +54,8 @@ var (
 		"tags":       `^refs/tags/%v$`,
 		"highesttag": `^refs/tags/%v$`,
 	}
-	jobOwnerKey = ".metadata.controller"
-	apiGVStr    = gitv1.GroupVersion.String()
+	ownerKey = ".metadata.controller"
+	apiGVStr = gitv1.GroupVersion.String()
 )
 
 // GitRepoReconciler reconciles a GitRepo object
@@ -79,43 +79,62 @@ func (r *GitRepoReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("gitrepo", req.NamespacedName)
 	dur, _ := time.ParseDuration("1m")
 	returnResult := ctrl.Result{RequeueAfter: dur}
+	// Get the referenced GitRepo
 	var repo gitv1.GitRepo
 	if err := r.Get(ctx, req.NamespacedName, &repo); err != nil {
 		log.Error(err, "unable to fetch Repo")
 		return returnResult, client.IgnoreNotFound(err)
 	}
-
-	remote := GetRemote(repo)
-	auth, err := get_ssh_key_auth()
+	// Get the remote git repo
+	remote := getRemote(repo)
+	// Get the Auth key from ~/.ssh/id_rsa
+	auth, err := getSSHKeyAuth()
 	if err != nil {
 		log.Error(err, "Unable to parse ssh key")
 		return returnResult, nil
 	}
-
+	// Get all git references like git ls-remote
 	refs, err := remote.List(&gitclient.ListOptions{Auth: auth})
 	if err != nil {
 		log.Error(err, "remote access error")
 		return returnResult, nil
 	}
+
+	// activeHashes will be a map of the [commithash] and the HashSpec that applies to it.
 	activeHashes := make(map[string]*gitv1.HashSpec)
+
+	// Range over every operation and if it matches the "optype" and the reference add it to the HashSpec
 OPLOOP:
 	for _, op := range repo.Spec.Operations {
+
+		// This is for "highesttag" optype
 		highestTag := highestTagSpec{}
+		// Go through every reference in the op to see if you should add this op to the
+		// Hashspec
 		for _, ref := range refs {
 			var regx string
+			// Ignore HEAD, we are not doing that
 			if ref.Name().String() != "HEAD" {
+
+				// op.ReferenceTitle is the human readable version of the title
+				// PRs are pull-#
+				// Branches and Tags are just the branch name
 				if op.Type == "pull" {
+					// "pull" does not use the reference field
 					regx = optypes[op.Type]
 					op.ReferenceTitle = strings.Join(strings.Split(ref.Name().String(), "/")[1:3], "-")
 				} else {
 					regx = fmt.Sprintf(optypes[op.Type], op.Reference)
 					op.ReferenceTitle = strings.Split(ref.Name().String(), "/")[2]
 				}
+				// Does the op reference match?
 				match := regexp.MustCompile(regx)
 				if match.MatchString(ref.Name().String()) {
+					// instantiate empty transformers, this should be moved
 					if op.Transformers == nil {
 						op.Transformers = []gitv1.Transformer{}
 					}
+					// If highesttag and is highest semver tag save it
 					if op.Type == "highesttag" {
 						if highestTag.Version != nil {
 							current, err := semver.NewVersion(op.ReferenceTitle)
@@ -128,6 +147,7 @@ OPLOOP:
 								highestTag.Hash = ref.Hash().String()
 							}
 						}
+						// Create or update the HashSpec with the operations
 					} else {
 						if val, ok := activeHashes[ref.Hash().String()]; ok {
 							val.Operations = append(val.Operations, op)
@@ -143,6 +163,7 @@ OPLOOP:
 				}
 			}
 		}
+		// Loop is over add the highesttag
 		if op.Type == "highesttag" {
 			if val, ok := activeHashes[highestTag.Hash]; ok {
 				val.Operations = append(val.Operations, op)
@@ -156,19 +177,25 @@ OPLOOP:
 
 		}
 	}
+
+	// Retrieve all Hashes owned by this GitRepo
 	var runningHashes gitv1.HashList
 	if err := r.List(ctx,
 		&runningHashes,
 		client.InNamespace(req.Namespace),
-		client.MatchingFields{jobOwnerKey: req.Name},
+		client.MatchingFields{ownerKey: req.Name},
 	); err != nil {
 		log.Error(err, "unable to list child Hashes")
 		return returnResult, err
 	}
+	// Reset Status to nil.  Will be saved at the end
 	repo.Status.Hashes = nil
 	for _, runningHash := range runningHashes.Items {
+		// If the running hash is present in the activehashes update it.  If not delete it.
 		if val, ok := activeHashes[runningHash.Name]; ok {
 			runningHash.Spec = *val
+
+			// Create or update the hash
 			result, err := controllerutil.CreateOrUpdate(
 				context.TODO(),
 				r,
@@ -181,7 +208,7 @@ OPLOOP:
 				log.Error(err, "unable to create hash for GitRepo", "hash", runningHash)
 				return returnResult, err
 			}
-			log.V(1).Info("Operation result", string(result), "Hash for GitRepo", "hash", runningHash)
+			log.Info("Operation result", string(result), "Hash for GitRepo", "hash", runningHash)
 
 			r.recorder.Event(
 				&repo,
@@ -189,7 +216,7 @@ OPLOOP:
 				string(result),
 				fmt.Sprintf("Repo %s for hash %s", string(result), runningHash.Name),
 			)
-
+			// Add the object to the status
 			objRef, err := ref.GetReference(r.Scheme, &runningHash)
 			if err != nil {
 				log.Error(err, "unable to make reference to active objects", "hash", runningHash)
@@ -197,6 +224,7 @@ OPLOOP:
 				repo.Status.Hashes = append(repo.Status.Hashes, *objRef)
 			}
 		} else {
+			// Hash is no longer referenced delete it.
 			if err := r.Delete(
 				ctx,
 				&runningHash,
@@ -214,10 +242,11 @@ OPLOOP:
 			}
 
 		}
-
+		// delete from active hashes list.  Whatever is left never existed
 		delete(activeHashes, runningHash.Name)
 
 	}
+	// Loop through remaining active hashes and createThe hash
 	for k, activeHash := range activeHashes {
 
 		hash := &gitv1.Hash{
@@ -260,7 +289,7 @@ OPLOOP:
 		log.V(1).Info("Operation result", string(result), "Hash for GitRepo", "hash", hash)
 
 	}
-
+	// Save the status
 	if err := r.Status().Update(ctx, &repo); err != nil {
 		log.Error(err, "unable to update Repo status")
 		return returnResult, err
@@ -270,7 +299,7 @@ OPLOOP:
 
 func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
-	if err := mgr.GetFieldIndexer().IndexField(&gitv1.Hash{}, jobOwnerKey, func(rawObj runtime.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(&gitv1.Hash{}, ownerKey, func(rawObj runtime.Object) []string {
 		hash := rawObj.(*gitv1.Hash)
 		owner := metav1.GetControllerOf(hash)
 		if owner == nil {
@@ -291,40 +320,16 @@ func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func GetRemote(g gitv1.GitRepo) (remote *gitclient.Remote) {
+func getRemote(g gitv1.GitRepo) (remote *gitclient.Remote) {
 	storer := gitclientmem.NewStorage()
 	remote = gitclient.NewRemote(storer, &gitclientconfig.RemoteConfig{
 		Name: "origin",
 		URLs: []string{g.Spec.Uri},
 	})
-	/*
-		dir, err := ioutil.TempDir("", "clone-example")
-		if err != nil {
-			return
-		}
-		defer os.RemoveAll(dir)
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return
-		}
-		auth, err := get_ssh_key_auth(fmt.Sprintf("%s/slipwaykey", home))
-		if err != nil {
-			return
-		}
-		rep, err := gitclient.PlainClone(dir, true, &git.CloneOptions{
-			URL:  g.Spec.Uri,
-			Auth: auth,
-		})
-		if err != nil {
-			return
-		}
-		remote, err = rep.Remote("origin")
-
-	*/
 	return
 }
 
-func get_ssh_key_auth() (auth transport.AuthMethod, err error) {
+func getSSHKeyAuth() (auth transport.AuthMethod, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return
