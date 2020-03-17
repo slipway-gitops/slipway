@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	unstruct "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -150,6 +151,8 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return *hash.Spec.Operations[i].Weight < *hash.Spec.Operations[j].Weight
 	})
 
+	// Save old objects and delete ones that are no longer present.
+	oldObjects := hash.Status.Objects
 	// Status objects will be reset and be set at the end of reconciliation
 	hash.Status.Objects = nil
 
@@ -220,17 +223,6 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 						ns)
 					return ctrl.Result{}, err
 				}
-				// add the reference to the status
-				if objRef, err := ref.GetReference(
-					r.Scheme,
-					&ns); err != nil {
-					log.Error(err,
-						"unable to make reference to active objects",
-						"object",
-						ns)
-				} else {
-					hash.Status.Objects = append(hash.Status.Objects, *objRef)
-				}
 				// Creat or update the namespace
 				_, err := controllerutil.CreateOrUpdate(
 					context.TODO(),
@@ -245,6 +237,17 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 						"namespace",
 						ns)
 					return ctrl.Result{}, err
+				}
+				// add the reference to the status
+				if objRef, err := ref.GetReference(
+					r.Scheme,
+					&ns); err != nil {
+					log.Error(err,
+						"unable to make reference to active objects",
+						"object",
+						ns)
+				} else {
+					hash.Status.Objects = append(hash.Status.Objects, *objRef)
 				}
 			case "prefix":
 				plugin := *prefixSuffixPlugin
@@ -308,6 +311,23 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 			log.Info("object for Hash", "object", u)
 
+		}
+	}
+	// Reap Old references
+OLDOBJECTLOOP:
+	for _, oobj := range oldObjects {
+		for _, nobj := range hash.Status.Objects {
+			if nobj.UID == oobj.UID {
+				continue OLDOBJECTLOOP
+			}
+		}
+		u := &unstructured.Unstructured{}
+		u.SetName(oobj.Name)
+		u.SetNamespace(oobj.Namespace)
+		u.SetGroupVersionKind(oobj.GroupVersionKind())
+		err := r.Delete(ctx, u)
+		if err != nil {
+			log.Error(err, "unable to delete orphaned objects", "object", u)
 		}
 	}
 	// Set the Hash status

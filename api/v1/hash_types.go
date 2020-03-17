@@ -35,6 +35,7 @@ type HashSpec struct {
 
 	// Operations to perform
 	// +kubebuilder:validation:Required
+	// +listType:=atomic
 	Operations []Operation `json:"operations"`
 }
 

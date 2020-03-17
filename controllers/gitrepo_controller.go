@@ -194,27 +194,22 @@ OPLOOP:
 		// If the running hash is present in the activehashes update it.  If not delete it.
 		if val, ok := activeHashes[runningHash.Name]; ok {
 			runningHash.Spec = *val
-
 			// Create or update the hash
-			result, err := controllerutil.CreateOrUpdate(
-				context.TODO(),
-				r,
+			err := r.Update(
+				ctx,
 				&runningHash,
-				func() error { return nil },
 			)
-			if err != nil &&
-				(errors.IsAlreadyExists(err) &&
-					result == controllerutil.OperationResultUpdated) {
+			if err != nil {
 				log.Error(err, "unable to create hash for GitRepo", "hash", runningHash)
 				return returnResult, err
 			}
-			log.Info("Operation result", string(result), "Hash for GitRepo", "hash", runningHash)
+			log.Info("Updated hash for GitRepo", "hash", runningHash)
 
 			r.recorder.Event(
 				&repo,
 				"Normal",
-				string(result),
-				fmt.Sprintf("Repo %s for hash %s", string(result), runningHash.Name),
+				"update",
+				fmt.Sprintf("Repo update for hash %s", runningHash.Name),
 			)
 			// Add the object to the status
 			objRef, err := ref.GetReference(r.Scheme, &runningHash)
@@ -261,6 +256,7 @@ OPLOOP:
 			log.Error(err, "unable to create hash for GitRepo", "hash", hash)
 			return returnResult, err
 		}
+
 		result, err := controllerutil.CreateOrUpdate(
 			context.TODO(),
 			r,
