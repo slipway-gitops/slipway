@@ -48,7 +48,7 @@ kubectl apply -k .
 
 If you want to try an example gitrepo you can try out:
 ```
-kubectl apply -k https://github.com/slipway-gitops/slipway-examples/gitrepo
+kubectl apply -k git@github.com:slipway-gitops/slipway-example-gitrepo.git
 ```
 
 This will deploy everything in a namespace called master
