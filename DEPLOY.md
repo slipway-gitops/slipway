@@ -35,7 +35,7 @@ secretGenerator:
 images:
 - name: controller
   newName: slipway/slipway
-  newTag: 0.1.2
+  newTag: 0.1.3
 generatorOptions:
   disableNameSuffixHash: true
 EOF

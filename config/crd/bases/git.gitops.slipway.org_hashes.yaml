@@ -52,6 +52,10 @@ spec:
                     type: string
                   optype:
                     description: Type of Operation kubebuilder:validation:MinLength=1
+                    enum:
+                    - tag
+                    - branch
+                    - pull
                     type: string
                   path:
                     description: Path to kustomize files.

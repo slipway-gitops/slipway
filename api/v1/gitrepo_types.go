@@ -58,7 +58,7 @@ type Operation struct {
 	Weight *int64 `json:"weight,omitempty"`
 	// Type of Operation
 	// kubebuilder:validation:MinLength=1
-	Type string `json:"optype"`
+	Type OpType `json:"optype"`
 	// Type Reference
 	// +optional
 	Reference string `json:"reference"`
@@ -69,6 +69,10 @@ type Operation struct {
 	// +optional
 	Transformers []Transformer `json:"transformers"`
 }
+
+// OpType is the type of operation that will take place
+// +kubebuilder:validation:Enum=tag;branch;pull
+type OpType string
 
 // Transformers are kustomize transformers available for contextual
 // transformation that cannot be accomplished with normal kustomize manifests

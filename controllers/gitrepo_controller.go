@@ -51,7 +51,7 @@ var (
 	optypes = map[string]string{
 		"pull":       `^refs/pull/[0-9]+/merge$`,
 		"branch":     `^refs/heads/%v$`,
-		"tags":       `^refs/tags/%v$`,
+		"tag":        `^refs/tags/%v$`,
 		"highesttag": `^refs/tags/%v$`,
 	}
 	ownerKey = ".metadata.controller"
@@ -106,7 +106,10 @@ func (r *GitRepoReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// Range over every operation and if it matches the "optype" and the reference add it to the HashSpec
 OPLOOP:
 	for _, op := range repo.Spec.Operations {
-
+		if _, ok := optypes[string(op.Type)]; !ok {
+			log.Error(err, "invalid optype", "operation", op)
+			return returnResult, nil
+		}
 		// This is for "highesttag" optype
 		highestTag := highestTagSpec{}
 		// Go through every reference in the op to see if you should add this op to the
@@ -121,10 +124,10 @@ OPLOOP:
 				// Branches and Tags are just the branch name
 				if op.Type == "pull" {
 					// "pull" does not use the reference field
-					regx = optypes[op.Type]
+					regx = optypes[string(op.Type)]
 					op.ReferenceTitle = strings.Join(strings.Split(ref.Name().String(), "/")[1:3], "-")
 				} else {
-					regx = fmt.Sprintf(optypes[op.Type], op.Reference)
+					regx = fmt.Sprintf(optypes[string(op.Type)], op.Reference)
 					op.ReferenceTitle = strings.Split(ref.Name().String(), "/")[2]
 				}
 				// Does the op reference match?
