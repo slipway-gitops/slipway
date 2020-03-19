@@ -89,10 +89,10 @@ kind: GitRepo
 metadata:
   name: gitrepo-sample
 spec:
-  uri: "git@github.com:slipway-gitops/slipway-examples.git"
+  uri: "git@github.com:slipway-gitops/slipway-example-app.git"
   operations:
     - operation: test
-      path: "git@github.com:slipway-gitops/slipway-examples.git//kustomize/base"
+      path: "git@github.com:slipway-gitops/slipway-example-app.git//kustomize/base"
       hashpath: true 
       weight: 3
       optype: branch
@@ -217,7 +217,7 @@ spec:
   operations:
   - operation: test
     optype: branch
-    path: git@github.com:slipway-gitops/slipway-examples.git//kustomize/base
+    path: git@github.com:slipway-gitops/slipway-example-app.git//kustomize/base
     reference: m[a-z]+r
     referencetitle: master
     transformers:
