@@ -26,6 +26,11 @@ type GitRepoSpec struct {
 	// Uri is the location of the repo.
 	Uri string `json:"uri"`
 
+	// GitPath determines how references should be parsed
+	// See https://github.com/slipway-gitops/slipway#the-spec
+	// +optional
+	GitPath string `json:"gitpath"`
+
 	// Store is a location to store operation artifacts after they have been released
 	// +optional
 	Store `json:"store,omitempty"`
@@ -97,19 +102,17 @@ type GitRepoStatus struct {
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=gitrepoes,scope=Cluster
+// +kubebuilder:resource:path=gitrepos,scope=Cluster
 // +kubebuilder:subresource:status
-// GitRepo is the Schema for the gitrepoes API
+// GitRepo is the Schema for the gitrepos API
 type GitRepo struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   GitRepoSpec   `json:"spec,omitempty"`
-	Status GitRepoStatus `json:"status,omitempty"`
+	Spec              GitRepoSpec   `json:"spec,omitempty"`
+	Status            GitRepoStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-
 // GitRepoList contains a list of GitRepo
 type GitRepoList struct {
 	metav1.TypeMeta `json:",inline"`

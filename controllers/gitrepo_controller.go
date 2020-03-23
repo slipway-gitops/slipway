@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -39,6 +37,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	gitv1 "github.com/slipway-gitops/slipway/api/v1"
+	"github.com/slipway-gitops/slipway/pkg/gitpath"
 	gitclient "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/transport"
 	gitssh "gopkg.in/src-d/go-git.v4/plumbing/transport/ssh"
@@ -46,14 +45,7 @@ import (
 )
 
 // These are just for github bb and gitlab may behave differently
-//TODO: move to git provider tooling
 var (
-	optypes = map[string]string{
-		"pull":       `^refs/pull/[0-9]+/merge$`,
-		"branch":     `^refs/heads/%v$`,
-		"tag":        `^refs/tags/%v$`,
-		"highesttag": `^refs/tags/%v$`,
-	}
 	ownerKey = ".metadata.controller"
 	apiGVStr = gitv1.GroupVersion.String()
 )
@@ -64,6 +56,7 @@ type GitRepoReconciler struct {
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	recorder record.EventRecorder
+	gitpaths map[string]gitpath.GitPath
 }
 
 type highestTagSpec struct {
@@ -71,8 +64,8 @@ type highestTagSpec struct {
 	Hash    string
 }
 
-// +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=gitrepoes,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=gitrepoes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=gitrepos,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=gitrepos/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 func (r *GitRepoReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
@@ -103,36 +96,36 @@ func (r *GitRepoReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// activeHashes will be a map of the [commithash] and the HashSpec that applies to it.
 	activeHashes := make(map[string]*gitv1.HashSpec)
 
+	// default is github
+	if repo.Spec.GitPath == "" {
+		repo.Spec.GitPath = "github"
+	}
+	gitpath, ok := r.gitpaths[repo.Spec.GitPath]
+	if !ok {
+		log.Error(err, "No plugin for this gitpath type")
+		return returnResult, nil
+	}
 	// Range over every operation and if it matches the "optype" and the reference add it to the HashSpec
 OPLOOP:
 	for _, op := range repo.Spec.Operations {
-		if _, ok := optypes[string(op.Type)]; !ok {
-			log.Error(err, "invalid optype", "operation", op)
-			return returnResult, nil
-		}
 		// This is for "highesttag" optype
 		highestTag := highestTagSpec{}
 		// Go through every reference in the op to see if you should add this op to the
 		// Hashspec
 		for _, ref := range refs {
-			var regx string
 			// Ignore HEAD, we are not doing that
 			if ref.Name().String() != "HEAD" {
-
+				gp, err := gitpath.New(string(op.Type), op.Reference, ref.Name().String())
+				if err != nil {
+					log.Error(err, "Unable to load gitpath", "gitpath", gp)
+					return returnResult, err
+				}
 				// op.ReferenceTitle is the human readable version of the title
 				// PRs are pull-#
 				// Branches and Tags are just the branch name
-				if op.Type == "pull" {
-					// "pull" does not use the reference field
-					regx = optypes[string(op.Type)]
-					op.ReferenceTitle = strings.Join(strings.Split(ref.Name().String(), "/")[1:3], "-")
-				} else {
-					regx = fmt.Sprintf(optypes[string(op.Type)], op.Reference)
-					op.ReferenceTitle = strings.Split(ref.Name().String(), "/")[2]
-				}
+				op.ReferenceTitle = gp.Title()
 				// Does the op reference match?
-				match := regexp.MustCompile(regx)
-				if match.MatchString(ref.Name().String()) {
+				if gp.Match() {
 					// instantiate empty transformers, this should be moved
 					if op.Transformers == nil {
 						op.Transformers = []gitv1.Transformer{}
@@ -297,7 +290,11 @@ OPLOOP:
 }
 
 func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
+	var err error
+	r.gitpaths, err = gitpath.LoadGitPaths("/etc/slipway/gitpaths/")
+	if err != nil {
+		return err
+	}
 	if err := mgr.GetFieldIndexer().IndexField(&gitv1.Hash{}, ownerKey, func(rawObj runtime.Object) []string {
 		hash := rawObj.(*gitv1.Hash)
 		owner := metav1.GetControllerOf(hash)

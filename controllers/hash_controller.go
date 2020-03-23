@@ -116,7 +116,7 @@ var (
 
 // +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=hashes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=hashes/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=gitrepoes,verbs=get
+// +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=gitrepos,verbs=get
 // +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=hashes/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=*,resources=*,verbs=*
 

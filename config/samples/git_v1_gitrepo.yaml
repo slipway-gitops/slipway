@@ -4,7 +4,7 @@ metadata:
   name: gitrepo-sample
 spec:
   uri: "git@github.com:jasonrichardsmith/slipway-examples.git"
-  security: "secret ref?"
+  gitpath: "github"
   operations:
     - operation: test
       path: "git@github.com:jasonrichardsmith/slipway-examples.git//kustomize/base"

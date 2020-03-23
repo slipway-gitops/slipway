@@ -15,7 +15,7 @@ rules:
 - apiGroups:
   - git.gitops.slipway.org
   resources:
-  - gitrepoes
+  - gitrepos
   verbs:
   - get
 - apiGroups:

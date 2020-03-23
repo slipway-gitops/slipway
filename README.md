@@ -124,6 +124,11 @@ Only hashes that are referenced by an operation will ever be deployed on the clu
 
 The Spec currently has a URI which should be self explanatory.
 
+```gitpath``` is a reference to a plugin by filename
+GitPath plugins can be found under the internal/plugins folder
+
+Currently only github is supported and is the default when not set.
+
 The Spec also contains an array of operations.
 
 ##### Operations
