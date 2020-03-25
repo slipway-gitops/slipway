@@ -60,7 +60,7 @@ type Operation struct {
 	HashPath bool `json:"hashpath"`
 	// Weight to determin order
 	// +optional
-	Weight *int64 `json:"weight,omitempty"`
+	Weight int64 `json:"weight,omitempty"`
 	// Type of Operation
 	// kubebuilder:validation:MinLength=1
 	Type OpType `json:"optype"`

@@ -57,6 +57,7 @@ func main() {
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
 		LeaderElection:     enableLeaderElection,
+		LeaderElectionID:   "slipway-gitops-controller",
 		Port:               9443,
 	})
 	if err != nil {

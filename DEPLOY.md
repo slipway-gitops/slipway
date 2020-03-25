@@ -23,7 +23,7 @@ Move your public ssh key to your Github account.
 Now we will setup kustomize to generate a Secret from your key, and load it into the controller
 
 
-```
+```bash
 cat <<'EOF' > kustomization.yaml
 bases:
 - https://github.com/slipway-gitops/slipway/config/default/?ref=master
@@ -35,7 +35,7 @@ secretGenerator:
 images:
 - name: controller
   newName: slipway/slipway
-  newTag: 0.1.4
+  newTag: 0.1.5
 generatorOptions:
   disableNameSuffixHash: true
 EOF

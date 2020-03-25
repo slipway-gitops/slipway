@@ -24,13 +24,13 @@ import (
 	"github.com/go-logr/logr"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	unstruct "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/tools/record"
 	ref "k8s.io/client-go/tools/reference"
 
 	"sigs.k8s.io/kustomize/api/builtins"
@@ -40,7 +40,11 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	gitv1 "github.com/slipway-gitops/slipway/api/v1"
 )
@@ -48,8 +52,10 @@ import (
 // HashReconciler reconciles a Hash object
 type HashReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log      logr.Logger
+	Scheme   *runtime.Scheme
+	recorder record.EventRecorder
+	watcher  func(*unstruct.Unstructured, *gitv1.Hash) error
 }
 
 var (
@@ -119,9 +125,9 @@ var (
 // +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=gitrepos,verbs=get
 // +kubebuilder:rbac:groups=git.gitops.slipway.org,resources=hashes/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=*,resources=*,verbs=*
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-
 	ctx := context.Background()
 	log := r.Log.WithValues("hash", req.NamespacedName)
 
@@ -148,7 +154,7 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	// sort all the Operations in this Hash by weight
 	sort.Slice(hash.Spec.Operations, func(i, j int) bool {
-		return *hash.Spec.Operations[i].Weight < *hash.Spec.Operations[j].Weight
+		return hash.Spec.Operations[i].Weight < hash.Spec.Operations[j].Weight
 	})
 
 	// Save old objects and delete ones that are no longer present.
@@ -211,7 +217,7 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					ObjectMeta: metav1.ObjectMeta{Name: val},
 				}
 				// Take ownership
-				if err := ctrl.SetControllerReference(
+				if err := controllerutil.SetControllerReference(
 					&hash,
 					&ns,
 					r.Scheme); err != nil {
@@ -224,11 +230,22 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					return ctrl.Result{}, err
 				}
 				// Creat or update the namespace
-				_, err := controllerutil.CreateOrUpdate(
+				result, err := controllerutil.CreateOrUpdate(
 					context.TODO(),
 					r,
 					&ns,
 					func() error { return nil },
+				)
+				log.Info("Operation result", string(result), "Object for Hash", "object", ns)
+				r.recorder.Event(
+					&hash,
+					"Normal",
+					string(result),
+					fmt.Sprintf("%s Kind:%s Named:%s",
+						strings.Title(string(result)),
+						"Namespace",
+						val,
+					),
 				)
 				if err != nil {
 					log.Error(err, "unable to add namespace for transform",
@@ -238,6 +255,7 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 						ns)
 					return ctrl.Result{}, err
 				}
+
 				// add the reference to the status
 				if objRef, err := ref.GetReference(
 					r.Scheme,
@@ -281,7 +299,7 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				u.SetNamespace("default")
 			}
 			// Take ownership of the resource
-			if err := ctrl.SetControllerReference(&hash, &u, r.Scheme); err != nil {
+			if err := controllerutil.SetControllerReference(&hash, &u, r.Scheme); err != nil {
 				log.Error(err, "unable to create resource for hash", "hash", hash)
 				return ctrl.Result{}, err
 			}
@@ -292,14 +310,26 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				&u,
 				func() error { return nil },
 			)
+			r.recorder.Event(
+				&hash,
+				"Normal",
+				string(result),
+				fmt.Sprintf("%s Kind:%s Named:%s in Namespace:%s",
+					strings.Title(string(result)),
+					u.GetKind(),
+					u.GetName(),
+					u.GetNamespace(),
+				),
+			)
 			// Catch specific errors for CreateOrUpdate
-			if err != nil &&
-				(!errors.IsAlreadyExists(err) &&
-					result != controllerutil.OperationResultUpdated) {
+			if err != nil {
 				log.Error(err, "unable to create object for hash", "object", u)
 				return ctrl.Result{}, err
 			}
+			if err := r.watcher(&u, &hash); err != nil {
+				log.Error(err, "unable to set watch on object", "object", u, "hash", hash)
 
+			}
 			log.Info("Operation result", string(result), "Object for Hash", "object", u)
 
 			// Safe the reference in status
@@ -317,7 +347,9 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 OLDOBJECTLOOP:
 	for _, oobj := range oldObjects {
 		for _, nobj := range hash.Status.Objects {
-			if nobj.UID == oobj.UID {
+			if nobj.Kind == oobj.Kind &&
+				nobj.Name == oobj.Name &&
+				nobj.Namespace == oobj.Namespace {
 				continue OLDOBJECTLOOP
 			}
 		}
@@ -328,18 +360,57 @@ OLDOBJECTLOOP:
 		err := r.Delete(ctx, u)
 		if err != nil {
 			log.Error(err, "unable to delete orphaned objects", "object", u)
+		} else {
+			r.recorder.Event(
+				&hash,
+				"Normal",
+				"delete",
+				fmt.Sprintf("%s Kind:%s Named:%s in Namespace:%s",
+					"Deleted",
+					u.GetKind(),
+					u.GetName(),
+					u.GetNamespace(),
+				),
+			)
+			log.Info("Operation result", "delete", "Object for Hash", "object", u)
 		}
 	}
-	// Set the Hash status
 	if err := r.Status().Update(ctx, &hash); err != nil {
 		log.Error(err, "unable to update Hash status")
-		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
 
 func (r *HashReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	r.recorder = mgr.GetEventRecorderFor("hash-controller")
+
+	cntrl, err := ctrl.NewControllerManagedBy(mgr).
 		For(&gitv1.Hash{}).
-		Complete(r)
+		Build(r)
+	r.watcher = watcher(cntrl)
+	return err
+}
+
+type WatchedObjPredicate struct{}
+
+// Ignore creation
+func (WatchedObjPredicate) Create(e event.CreateEvent) bool { return false }
+
+// If objects are deleted we need to rerun
+func (WatchedObjPredicate) Delete(e event.DeleteEvent) bool { return true }
+
+// If objects are updated we need to rerun
+func (WatchedObjPredicate) Update(e event.UpdateEvent) bool { return true }
+
+// Always false, not meant for this controller
+func (WatchedObjPredicate) Generic(e event.GenericEvent) bool { return false }
+
+func watcher(cntrl controller.Controller) func(*unstruct.Unstructured, *gitv1.Hash) error {
+	watcher := func(u *unstruct.Unstructured, h *gitv1.Hash) error {
+		return cntrl.Watch(&source.Kind{Type: u},
+			&handler.EnqueueRequestForOwner{OwnerType: h},
+			WatchedObjPredicate{},
+		)
+	}
+	return watcher
 }
