@@ -26,7 +26,7 @@ Now we will setup kustomize to generate a Secret from your key, and load it into
 ```bash
 cat <<'EOF' > kustomization.yaml
 bases:
-- https://github.com/slipway-gitops/slipway/config/default/?ref=master
+- "https://github.com/slipway-gitops/slipway/config/default/?ref=master"
 secretGenerator:
 - name: slipwaykey
   namespace: slipway-system
