@@ -90,6 +90,10 @@ metadata:
   name: gitrepo-sample
 spec:
   uri: "git@github.com:slipway-gitops/slipway-example-app.git"
+  gitpath: "github"
+  store:
+    type: "s3"
+    bucket: "mybucketname"
   operations:
     - operation: test
       path: "git@github.com:slipway-gitops/slipway-example-app.git//kustomize/base"
@@ -124,12 +128,25 @@ Only hashes that are referenced by an operation will ever be deployed on the clu
 
 The Spec currently has a URI which should be self explanatory.
 
-```gitpath``` is a reference to a plugin by filename
+##### Gitpath
+Is a reference to a plugin by filename
 GitPath plugins can be found under the internal/plugins folder
 
 Currently only github is supported and is the default when not set.
 
-The Spec also contains an array of operations.
+##### Store
+Is an object that gives you the ability to store any applied configuration
+as a manifest in a storage system.  Currently this only supports S3 bu the plugins
+can be developed to support any storage layer.
+
+```type``` only currently supports s3 but [new storage plugins can be built](PLUGINS.md).
+
+```bucket``` is the location
+
+The files are stored as hash/operation(name)/unixtime.
+
+AWS Credentials are searched for in the regular AWS SDK fashion.  You can use environment values, credentials
+as a secret or [IRSA](https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/).
 
 ##### Operations
 Operations define what references the operation should act on and what it should accomplish and it is
@@ -251,6 +268,9 @@ Many of the fields are copied from the operations in the GitRepo.
 
 ***Status*** - stores a reference to all the object the hash has created
 
+
+### Plugins
+To see how plugins are developed please refer to the [PLUGINS.md](PLUGINS.md).
 
 ## Running
 This project is currently under development and is not intended for production use.

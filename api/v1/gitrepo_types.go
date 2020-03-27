@@ -43,7 +43,7 @@ type GitRepoSpec struct {
 type Store struct {
 
 	// Cloud provider: aws, azure, gcp
-	Cloud string `json:"cloud"`
+	Type string `json:"type"`
 
 	// Bucket
 	Bucket string `json:"bucket"`
@@ -67,7 +67,7 @@ type Operation struct {
 	// Type Reference
 	// +optional
 	Reference string `json:"reference"`
-	// Type Reference
+	// Type ReferenceTitle
 	// +optional
 	ReferenceTitle string `json:"referencetitle"`
 	// Type tranformers

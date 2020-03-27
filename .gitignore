@@ -22,3 +22,9 @@ bin
 *.swp
 *.swo
 *~
+
+# plugin binaries
+internal/bin
+
+# samples folder
+config/samples

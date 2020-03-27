@@ -11,7 +11,7 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
-all: manager
+all: manager plugins
 
 # Run tests
 test: generate fmt vet manifests
@@ -21,9 +21,13 @@ test: generate fmt vet manifests
 manager: generate fmt vet
 	go build -o bin/manager main.go
 
+# Build manager binary
+plugins: fmt vet
+	hack/pluginbuilder.sh
+
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet manifests
-	go run ./main.go
+	go run ./main.go --plugin-path internal/bin/
 
 # Install CRDs into a cluster
 install: manifests

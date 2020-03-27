@@ -64,7 +64,7 @@ spec:
                     description: Type Reference
                     type: string
                   referencetitle:
-                    description: Type Reference
+                    description: Type ReferenceTitle
                     type: string
                   transformers:
                     description: Type tranformers
@@ -99,6 +99,19 @@ spec:
                 - path
                 type: object
               type: array
+            store:
+              description: Store Backup storage type
+              properties:
+                bucket:
+                  description: Bucket
+                  type: string
+                type:
+                  description: 'Cloud provider: aws, azure, gcp'
+                  type: string
+              required:
+              - bucket
+              - type
+              type: object
           required:
           - gitrepo
           - operations

@@ -44,18 +44,22 @@ import (
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	gitv1 "github.com/slipway-gitops/slipway/api/v1"
+	"github.com/slipway-gitops/slipway/pkg/objectstore"
 )
 
 // HashReconciler reconciles a Hash object
 type HashReconciler struct {
 	client.Client
-	Log      logr.Logger
-	Scheme   *runtime.Scheme
-	recorder record.EventRecorder
-	watcher  func(*unstruct.Unstructured, *gitv1.Hash) error
+	Log          logr.Logger
+	Scheme       *runtime.Scheme
+	PluginPath   string
+	recorder     record.EventRecorder
+	objectstores map[string]objectstore.ObjectStore
+	watcher      func(*unstruct.Unstructured, *gitv1.Hash) error
 }
 
 var (
@@ -145,6 +149,19 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// If storage is set
+	// TODO: move this and the maps to the packages
+	var storage objectstore.ObjectStore
+	if hash.Spec.Store != nil {
+		if val, ok := r.objectstores[hash.Spec.Store.Type]; ok {
+			storage = val.New(hash.Spec.Store.Bucket)
+		} else {
+			log.Error(objectstore.ErrInvalidType, "No plugin for this objectstore type", hash.Spec.Store.Type)
+			return ctrl.Result{}, nil
+		}
+	} else {
+		log.Info("No Storage type selected")
+	}
 	// Filesystem needed for Kustomize to make a call
 	fs := filesys.MakeFsOnDisk()
 
@@ -342,6 +359,18 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			log.Info("object for Hash", "object", u)
 
 		}
+		yaml, err := m.AsYaml()
+		if err != nil {
+			log.Error(err, "unable to produce yaml from resourcemap", "resourcemap", m)
+		}
+		if storage != nil {
+			go func(hash, op string, bytes []byte) {
+				err = storage.Save(hash, op, bytes)
+				if err != nil {
+					log.Error(err, "unable to save yaml to storage", "yaml", yaml)
+				}
+			}(hash.Name, operation.Name, yaml)
+		}
 	}
 	// Reap Old references
 OLDOBJECTLOOP:
@@ -381,11 +410,17 @@ OLDOBJECTLOOP:
 	return ctrl.Result{}, nil
 }
 
-func (r *HashReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *HashReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
+	r.objectstores, err = objectstore.LoadObjectStores(fmt.Sprintf("%s/objectstores/", r.PluginPath))
+	if err != nil {
+		return err
+	}
+
 	r.recorder = mgr.GetEventRecorderFor("hash-controller")
 
 	cntrl, err := ctrl.NewControllerManagedBy(mgr).
 		For(&gitv1.Hash{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Build(r)
 	r.watcher = watcher(cntrl)
 	return err

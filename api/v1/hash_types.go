@@ -37,6 +37,10 @@ type HashSpec struct {
 	// +kubebuilder:validation:Required
 	// +listType:=atomic
 	Operations []Operation `json:"operations"`
+
+	// Store Backup storage type
+	// +optional
+	*Store `json:"store,omitempty"`
 }
 
 // HashStatus defines the observed state of Hash

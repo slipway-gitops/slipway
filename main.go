@@ -44,9 +44,11 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var pluginpath string
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&pluginpath, "plugin-path", "/etc/slipway/", "The base directory for slipway  plugins")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
@@ -66,17 +68,19 @@ func main() {
 	}
 
 	if err = (&controllers.GitRepoReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("GitRepo"),
-		Scheme: mgr.GetScheme(),
+		Client:     mgr.GetClient(),
+		Log:        ctrl.Log.WithName("controllers").WithName("GitRepo"),
+		Scheme:     mgr.GetScheme(),
+		PluginPath: pluginpath,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GitRepo")
 		os.Exit(1)
 	}
 	if err = (&controllers.HashReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Hash"),
-		Scheme: mgr.GetScheme(),
+		Client:     mgr.GetClient(),
+		Log:        ctrl.Log.WithName("controllers").WithName("Hash"),
+		Scheme:     mgr.GetScheme(),
+		PluginPath: pluginpath,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Hash")
 		os.Exit(1)

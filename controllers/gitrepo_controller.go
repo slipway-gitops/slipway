@@ -34,6 +34,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/Masterminds/semver/v3"
 	gitv1 "github.com/slipway-gitops/slipway/api/v1"
@@ -53,10 +54,11 @@ var (
 // GitRepoReconciler reconciles a GitRepo object
 type GitRepoReconciler struct {
 	client.Client
-	Log      logr.Logger
-	Scheme   *runtime.Scheme
-	recorder record.EventRecorder
-	gitpaths map[string]gitpath.GitPath
+	Log        logr.Logger
+	Scheme     *runtime.Scheme
+	recorder   record.EventRecorder
+	gitpaths   map[string]gitpath.GitPath
+	PluginPath string
 }
 
 type highestTagSpec struct {
@@ -97,6 +99,7 @@ func (r *GitRepoReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	activeHashes := make(map[string]*gitv1.HashSpec)
 
 	// default is github
+	// TODO: move this and the maps to the packages
 	if repo.Spec.GitPath == "" {
 		repo.Spec.GitPath = "github"
 	}
@@ -149,10 +152,12 @@ OPLOOP:
 							val.Operations = append(val.Operations, op)
 							activeHashes[ref.Hash().String()] = val
 						} else {
-							activeHashes[ref.Hash().String()] = &gitv1.HashSpec{
+							spec := &gitv1.HashSpec{
 								GitRepo:    repo.ObjectMeta.Name,
 								Operations: []gitv1.Operation{op},
+								Store:      &repo.Spec.Store,
 							}
+							activeHashes[ref.Hash().String()] = spec
 						}
 					}
 
@@ -165,10 +170,12 @@ OPLOOP:
 				val.Operations = append(val.Operations, op)
 				activeHashes[highestTag.Hash] = val
 			} else {
-				activeHashes[highestTag.Hash] = &gitv1.HashSpec{
+				spec := &gitv1.HashSpec{
 					GitRepo:    repo.ObjectMeta.Name,
 					Operations: []gitv1.Operation{op},
+					Store:      &repo.Spec.Store,
 				}
+				activeHashes[highestTag.Hash] = spec
 			}
 
 		}
@@ -291,7 +298,7 @@ OPLOOP:
 
 func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
-	r.gitpaths, err = gitpath.LoadGitPaths("/etc/slipway/gitpaths/")
+	r.gitpaths, err = gitpath.LoadGitPaths(fmt.Sprintf("%s/gitpaths/", r.PluginPath))
 	if err != nil {
 		return err
 	}
@@ -313,6 +320,7 @@ func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gitv1.GitRepo{}).
 		Owns(&gitv1.Hash{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }
 
