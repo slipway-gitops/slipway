@@ -281,6 +281,8 @@ To run this for development with kubebuilder.
 Start up a cluster (minikube)
 and under the root directory run:
 ```
+make # builds the binary and plugins
+make install # build and install the manifests
 make run ENABLE_WEBHOOKS=false
 ```
 
@@ -289,6 +291,4 @@ The project requires a valid ssh key to exist at $HOME/.ssh/id_rsa
 kustomize ("path" settings)will support http pulls but only on public repositories.
 So consider that when setting "path" on an operation.
 
-
-This project is in it's very early stages and contributions are welcome.
 

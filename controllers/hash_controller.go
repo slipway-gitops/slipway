@@ -156,7 +156,7 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if val, ok := r.objectstores[hash.Spec.Store.Type]; ok {
 			storage = val.New(hash.Spec.Store.Bucket)
 		} else {
-			log.Error(objectstore.ErrInvalidType, "No plugin for this objectstore type", hash.Spec.Store.Type)
+			log.Error(objectstore.ErrInvalidType, "No plugin for this objectstore type", "store", hash.Spec.Store)
 			return ctrl.Result{}, nil
 		}
 	} else {
