@@ -152,7 +152,7 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// If storage is set
 	// TODO: move this and the maps to the packages
 	var storage objectstore.ObjectStore
-	if hash.Spec.Store != nil {
+	if hash.Spec.Store != nil && hash.Spec.Store.Type != "" {
 		if val, ok := r.objectstores[hash.Spec.Store.Type]; ok {
 			storage = val.New(hash.Spec.Store.Bucket)
 		} else {
