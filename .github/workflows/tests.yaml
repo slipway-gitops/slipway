@@ -1,0 +1,29 @@
+name: Test
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches: 
+      - master
+jobs:
+  build:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Go 1.13
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.13
+      id: go
+    - name: Check out
+      uses: actions/checkout@v2
+    - name: Kubebuilder
+      run: |
+        os=$(go env GOOS)
+        arch=$(go env GOARCH)
+        curl -L https://go.kubebuilder.io/dl/2.3.0/${os}/${arch} | tar -xz -C /tmp/
+        sudo mv /tmp/kubebuilder_2.3.0_${os}_${arch} /usr/local/kubebuilder
+        export PATH=$PATH:/usr/local/kubebuilder/bin
+    - name: Test
+      run: make test

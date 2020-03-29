@@ -25,7 +25,7 @@ RUN ./pluginbuilder.sh
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 # FROM gcr.io/distroless/static:nonroot
 FROM ubuntu:xenial
-RUN apt-get update && apt-get upgrade
+RUN apt-get update && apt-get upgrade -y 
 RUN apt-get install -y git
 RUN useradd -m -d /home/nonroot nonroot
 WORKDIR /

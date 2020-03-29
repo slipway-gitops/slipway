@@ -1,0 +1,19 @@
+name: Docker build
+on:
+  push:
+    branches:
+      - "*"
+jobs:
+  build:
+    name: Docker
+    runs-on: ubuntu-latest
+    steps:
+    - uses: azure/docker-login@v1
+      with:
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+    - uses: actions/checkout@v2
+    - name: Build the Docker image
+      run: docker build . -t slipway/slipway:${GITHUB_REF##*/}
+    - name: Push the Docker image
+      run: docker push slipway/slipway:${GITHUB_REF##*/}

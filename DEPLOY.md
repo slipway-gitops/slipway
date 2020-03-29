@@ -22,35 +22,30 @@ Move your public ssh key to your Github account.
 
 Now we will setup kustomize to generate a Secret from your key, and load it into the controller
 
+First create the namespace.
+```
+kubectl create ns slipway-system
+```
 
 ```bash
 cat <<'EOF' > kustomization.yaml
-bases:
-- "https://github.com/slipway-gitops/slipway/config/default/?ref=master"
 secretGenerator:
 - name: slipwaykey
   namespace: slipway-system
   files:
   - id_rsa
-images:
-- name: controller
-  newName: slipway/slipway
-  newTag: 0.1.6
 generatorOptions:
   disableNameSuffixHash: true
 EOF
 ```
 
-Now in the same folder you should be able to run:
+Now in the same folder you will run:
 ```
 kubectl apply -k .
+kubectl apply -f https://github.com/slipway-gitops/slipway/releases/latest/download/fulldeploy.yaml
 ```
 
-If you want to try an example gitrepo you can try out:
+If you want to try an example gitrepo you can try out the
+[examples repo](https://github.com/slipway-gitops/slipway-example-gitrepo)
 ```
-kubectl apply -k git@github.com:slipway-gitops/slipway-example-gitrepo.git
-```
-
-This will deploy everything in a namespace called master
-
 
