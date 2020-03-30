@@ -27,6 +27,12 @@ jobs:
         export PATH=$PATH:/usr/local/kubebuilder/bin
     - name: Test
       run: make test
+    - name: Send coverage
+      env:
+        COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        GO111MODULE=off go get github.com/mattn/goveralls
+        $(go env GOPATH)/bin/goveralls -coverprofile=cover.out -service=github
   Minikube:
     name: Minikube tests
     runs-on: ubuntu-latest

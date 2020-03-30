@@ -3,6 +3,8 @@
 # Slipway
 
 ![Tests](https://github.com/slipway-gitops/slipway/workflows/Test/badge.svg)
+[![Go Report Card](https://goreportcard.com/badge/github.com/slipway-gitops/slipway)](https://goreportcard.com/report/github.com/slipway-gitops/slipway)
+[![Coverage Status](https://coveralls.io/repos/github/slipway-gitops/slipway/badge.svg?branch=master)](https://coveralls.io/github/slipway-gitops/slipway?branch=master)
 
 Slipway is a Kubernetes controller to automate gitops provisioning. 
 
