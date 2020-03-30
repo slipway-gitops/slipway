@@ -8,7 +8,7 @@ on:
       - master
 jobs:
   build:
-    name: Test
+    name: Go tests
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go 1.13
@@ -27,3 +27,60 @@ jobs:
         export PATH=$PATH:/usr/local/kubebuilder/bin
     - name: Test
       run: make test
+  Minikube:
+    name: Minikube tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: azure/docker-login@v1
+      with:
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+    - uses: actions/checkout@v2
+    - name: Build the Docker image
+      run: docker build . -t slipway/slipway:$GITHUB_SHA
+    - name: Push the Docker image
+      run: docker push slipway/slipway:$GITHUB_SHA
+    - name: Minikube
+      run: |
+          sudo apt-get update -y
+          sudo apt-get install -y conntrack
+          curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          chmod +x minikube
+          sudo mkdir -p /usr/local/bin/
+          sudo install minikube /usr/local/bin/
+          CHANGE_MINIKUBE_NONE_USER=true sudo -E minikube start --vm-driver=none --kubernetes-version v1.17.0 --wait=true
+    - name: get kustomize
+      run: | 
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" \
+          | bash
+          sudo cp kustomize /usr/local/bin
+    - name: Build Slipway and deploy
+      run: |
+          mkdir base
+          touch base/kustomization.yaml
+          cd base
+          kustomize edit add base ../config/default
+          kustomize edit set image controller=slipway/slipway:${GITHUB_SHA}
+          kubectl create ns slipway-system
+          echo "${{ secrets.SLIPWAY_MACHINE_SSH }}" > id_rsa
+          kubectl create secret -n slipway-system generic slipwaykey \
+            --from-file=./id_rsa
+          kustomize build . | kubectl apply -f -
+          kubectl set env deployment/slipway-controller-manager \
+            -n slipway-system -c manager TMPDIR=/home/nonroot
+          kubectl describe pods -n slipway-system
+    - name: Deploy sample app
+      run: | 
+          kubectl apply -k https://github.com/slipway-gitops/slipway-example-gitrepo//
+    - name: Validate sample app
+      run: |
+          kubectl describe deployment -n slipway-system slipway-controller-manager
+          kubectl wait --for=condition=Available -n slipway-system deployment/slipway-controller-manager --timeout=1000s
+          kubectl describe gitrepo
+          kubectl describe hash
+          NEXT_WAIT_TIME=0
+          until kubectl wait --for=condition=Available deployment/the-deployment --timeout=60s || [ $NEXT_WAIT_TIME -eq 20 ]; do
+             sleep $(( NEXT_WAIT_TIME++ ))
+          done
+          kubectl get cm the-map
+          kubectl get svc the-service
