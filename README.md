@@ -2,7 +2,7 @@
 
 # Slipway
 
-![Tests](https://github.com/slipway-gitops/slipway/workflows/Test/badge.svg)
+[![Tests](https://github.com/slipway-gitops/slipway/workflows/Test/badge.svg)](https://github.com/slipway-gitops/slipway/actions?query=workflow%3ATest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/slipway-gitops/slipway)](https://goreportcard.com/report/github.com/slipway-gitops/slipway)
 [![Coverage Status](https://coveralls.io/repos/github/slipway-gitops/slipway/badge.svg?branch=master)](https://coveralls.io/github/slipway-gitops/slipway?branch=master)
 

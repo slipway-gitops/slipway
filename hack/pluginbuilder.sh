@@ -1,4 +1,4 @@
-TYPES=internal/plugins/*
+TYPES="${TYPES:-internal/plugins/*}"
 for f in $TYPES
 do
   BINDIR="$(basename -- $f)"

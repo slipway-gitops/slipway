@@ -14,16 +14,20 @@ endif
 all: manager plugins
 
 # Run tests
-test: generate fmt vet manifests
+test: generate fmt vet manifests plugins testplugins
 	go test ./... -coverprofile cover.out
 
 # Build manager binary
 manager: generate fmt vet
 	go build -o bin/manager main.go
 
-# Build manager binary
+# Build plugin binaries
 plugins: fmt vet
 	hack/pluginbuilder.sh
+
+# Build test plugin binaries
+testplugins: fmt vet
+	TYPES=internal/plugintests/* hack/pluginbuilder.sh
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet manifests
