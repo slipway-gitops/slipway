@@ -28,11 +28,11 @@ func TestMain(m *testing.M) {
 }
 
 func GetNames() error {
-	err := testlogger.ReadUntilLog("name", "controllers")
+	err := gittestlogger.ReadUntilLog("name", "controllers")
 	if err != nil {
 		return err
 	}
-	err = testlogger.ReadUntilLog("name", "GitRepo")
+	err = gittestlogger.ReadUntilLog("name", "GitRepo")
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func GetNames() error {
 func GetValues(vals ...string) error {
 	var retvals []string
 	for _ = range vals {
-		val, err := testlogger.ReadUntilType("value")
+		val, err := gittestlogger.ReadUntilType("value")
 		if err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func TestGitRepoReconcile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	err = testlogger.ReadUntilLog("error", "remote access error: repository not found -- []")
+	err = gittestlogger.ReadUntilLog("error", "remote access error: repository not found -- []")
 	if err != nil {
 		t.Error(err)
 	}
@@ -106,7 +106,7 @@ func TestGitRepoReconcile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	err = testlogger.ReadUntilLog("error", "No plugin for this gitpath type: <nil> -- []")
+	err = gittestlogger.ReadUntilLog("error", "No plugin for this gitpath type: <nil> -- []")
 	if err != nil {
 		t.Error(err)
 	}
@@ -124,7 +124,7 @@ func TestGitRepoReconcile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	err = testlogger.ReadUntilRegex("info", `^Operation result: \[created Hash for GitRepo*`)
+	err = gittestlogger.ReadUntilRegex("info", `^Operation result: \[created Hash for GitRepo*`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -150,7 +150,7 @@ func TestGitRepoReconcile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	err = testlogger.ReadUntilRegex("info", "^deleted old hash*")
+	err = gittestlogger.ReadUntilRegex("info", "^deleted old hash*")
 	if err != nil {
 		t.Error(err)
 	}
@@ -161,6 +161,42 @@ func TestGitRepoReconcile(t *testing.T) {
 	}
 	if len(hashListGet.Items) != 1 {
 		t.Error("Expected one hash item returned")
+	}
+	myKind = &v1.GitRepo{}
+	err = k8sClient.Get(ctx, client.ObjectKey{
+		Name: "testresource",
+	}, myKind)
+	if err != nil {
+		t.Error(err)
+	}
+	myKind.Spec.Operations = []v1.Operation{
+		v1.Operation{
+			Name:         "highesttest",
+			Path:         "git@github.com:slipway-gitops/slipway-example-app.git//kustomize/base",
+			Transformers: []v1.Transformer{},
+			Type:         v1.OpType("highesttag"),
+			Reference:    "v1.1.[0-9]",
+		},
+	}
+	err = k8sClient.Update(ctx, myKind)
+	if err != nil {
+		t.Error(err)
+	}
+	err = GetValues("gitrepo", "/testresource")
+	if err != nil {
+		t.Error(err)
+	}
+	err = gittestlogger.ReadUntilRegex("info", `^Operation result: \[created Hash for GitRepo*`)
+	if err != nil {
+		t.Error(err)
+	}
+	hashListGet = &v1.HashList{}
+	err = k8sClient.List(ctx, hashListGet)
+	if err != nil {
+		t.Error(err)
+	}
+	if hashListGet.Items[0].Spec.Operations[0].ReferenceTitle != "v1.1.0" {
+		t.Error("Expectected highest version v1.1.0")
 	}
 	//t.Error(litter.Sdump(hashListGet))
 }

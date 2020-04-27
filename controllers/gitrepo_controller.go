@@ -145,6 +145,15 @@ OPLOOP:
 								highestTag.Version = current
 								highestTag.Hash = ref.Hash().String()
 							}
+						} else {
+							current, err := semver.NewVersion(op.ReferenceTitle)
+							if err != nil {
+								log.Error(err, "unable parse semver, Skipping Op", "op", op)
+								continue OPLOOP
+							}
+							highestTag.Version = current
+							highestTag.Hash = ref.Hash().String()
+
 						}
 						// Create or update the HashSpec with the operations
 					} else {
@@ -166,6 +175,7 @@ OPLOOP:
 		}
 		// Loop is over add the highesttag
 		if op.Type == "highesttag" {
+			op.ReferenceTitle = highestTag.Version.Original()
 			if val, ok := activeHashes[highestTag.Hash]; ok {
 				val.Operations = append(val.Operations, op)
 				activeHashes[highestTag.Hash] = val
@@ -180,7 +190,6 @@ OPLOOP:
 
 		}
 	}
-
 	// Retrieve all Hashes owned by this GitRepo
 	var runningHashes gitv1.HashList
 	if err := r.List(ctx,
