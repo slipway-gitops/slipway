@@ -18,6 +18,10 @@ jobs:
       id: go
     - name: Check out
       uses: actions/checkout@v2
+    - name: ssh key
+      run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SLIPWAY_MACHINE_SSH }}" > ~/.ssh/id_rsa
     - name: Kubebuilder
       run: |
         os=$(go env GOOS)

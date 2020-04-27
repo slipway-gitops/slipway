@@ -28,3 +28,7 @@ internal/bin
 
 # samples folder
 config/samples
+
+# coverprofiles
+*.cover
+cover.out

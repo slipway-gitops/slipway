@@ -15,7 +15,12 @@ all: manager plugins
 
 # Run tests
 test: generate fmt vet manifests plugins testplugins
-	go test ./... -coverprofile cover.out
+	go test ./pkg/... -coverprofile cover1.cover
+	rm internal/bin/gitpaths/test.so
+	rm internal/bin/objectstores/test.so
+	go test -v ./controllers/... -coverprofile cover2.cover
+	cat cover1.cover > cover.out
+	tail -n +2 cover2.cover >> cover.out
 
 # Build manager binary
 manager: generate fmt vet

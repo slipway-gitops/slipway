@@ -5,6 +5,7 @@ go 1.14
 require (
 	github.com/Masterminds/semver/v3 v3.0.3
 	github.com/aws/aws-sdk-go v1.29.32
+	github.com/davecgh/go-spew v1.1.1
 	github.com/go-logr/logr v0.1.0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1

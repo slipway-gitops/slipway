@@ -227,8 +227,8 @@ OPLOOP:
 				ctx,
 				&runningHash,
 				client.PropagationPolicy(metav1.DeletePropagationBackground),
-			); err != nil {
-				log.V(0).Info("deleted old hash failed", "hash", runningHash)
+			); err == nil {
+				log.Info("deleted old hash failed", "hash", runningHash)
 			} else {
 				log.Error(err, "deleted old hash", "hash", runningHash)
 				r.recorder.Event(
@@ -285,7 +285,7 @@ OPLOOP:
 		} else {
 			repo.Status.Hashes = append(repo.Status.Hashes, *objRef)
 		}
-		log.V(1).Info("Operation result", string(result), "Hash for GitRepo", "hash", hash)
+		log.Info("Operation result", string(result), "Hash for GitRepo", "hash", hash)
 
 	}
 	// Save the status
