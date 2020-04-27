@@ -39,13 +39,15 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg        *rest.Config
-	k8sClient  client.Client
-	testEnv    *envtest.Environment
-	stopCh     chan struct{}
-	control    *GitRepoReconciler
-	testlogger *TestLogger
-	scheme     = runtime.NewScheme()
+	cfg            *rest.Config
+	k8sClient      client.Client
+	testEnv        *envtest.Environment
+	stopCh         chan struct{}
+	gitcontrol     *GitRepoReconciler
+	hashcontrol    *HashReconciler
+	gittestlogger  *TestLogger
+	hashtestlogger *TestLogger
+	scheme         = runtime.NewScheme()
 )
 
 var (
@@ -84,26 +86,38 @@ func SetupTestGitRepo(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	testlogger = &TestLogger{Timeout: 10000000000, Logs: make(chan log, 10)}
-	control = &GitRepoReconciler{
+	gittestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 10)}
+	gitcontrol = &GitRepoReconciler{
 		Client:     mgr.GetClient(),
-		Log:        testlogger.WithName("controllers").WithName("GitRepo"),
+		Log:        gittestlogger.WithName("controllers").WithName("GitRepo"),
 		recorder:   mgr.GetEventRecorderFor("gitrepo-controller"),
 		Scheme:     mgr.GetScheme(),
 		PluginPath: "../internal/bin/",
 	}
-	err = control.SetupWithManager(mgr)
+	err = gitcontrol.SetupWithManager(mgr)
 	if err != nil {
 		return err
 	}
 
+	hashtestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 10)}
+	hashcontrol = &HashReconciler{
+		Client:     mgr.GetClient(),
+		Log:        hashtestlogger.WithName("controllers").WithName("Hash"),
+		recorder:   mgr.GetEventRecorderFor("hash-controller"),
+		Scheme:     mgr.GetScheme(),
+		PluginPath: "../internal/bin/",
+	}
+	err = hashcontrol.SetupWithManager(mgr)
+	if err != nil {
+		return err
+	}
 	go mgr.Start(stopCh)
 	return nil
 }
 
 func TearDownTestGitRepo() error {
 	close(stopCh)
-	close(testlogger.Logs)
+	close(gittestlogger.Logs)
 	return testEnv.Stop()
 }
 
