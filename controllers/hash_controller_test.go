@@ -41,7 +41,7 @@ func GetHashValues(vals ...string) error {
 func testHashReconcile(t *testing.T) {
 
 	ctx := context.TODO()
-	myKind := &v1.Hash{
+	hash := &v1.Hash{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "testhash",
 		},
@@ -56,7 +56,7 @@ func testHashReconcile(t *testing.T) {
 			},
 		},
 	}
-	err := k8sClient.Create(ctx, myKind)
+	err := k8sClient.Create(ctx, hash)
 	if err != nil {
 		t.Error(err)
 	}
@@ -66,6 +66,55 @@ func testHashReconcile(t *testing.T) {
 	}
 	err = hashtestlogger.ReadUntilRegex("error",
 		"^unable to fetch Owner Repo: GitRepo.git.gitops.slipway.org*")
+	if err != nil {
+		t.Error(err)
+	}
+	repo := &v1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testresource",
+		},
+		Spec: v1.GitRepoSpec{
+			Uri: "thisisbasicinvalid",
+			Operations: []v1.Operation{
+				v1.Operation{
+					Name:         "test",
+					Transformers: []v1.Transformer{},
+					Type:         "tag",
+				},
+			},
+		},
+	}
+	err = k8sClient.Create(ctx, repo)
+	if err != nil {
+		t.Error(err)
+	}
+	hash.Spec.GitRepo = "testresource"
+	err = k8sClient.Update(ctx, hash)
+	if err != nil {
+		t.Error(err)
+	}
+	err = hashtestlogger.ReadUntilLog("info",
+		"No Storage type selected: []")
+	if err != nil {
+		t.Error(err)
+	}
+	hash.Spec.Store = &v1.Store{Type: "invalid"}
+	err = k8sClient.Update(ctx, hash)
+	if err != nil {
+		t.Error(err)
+	}
+	err = hashtestlogger.ReadUntilRegex("error",
+		"^No plugin for this objectstore type*")
+	if err != nil {
+		t.Error(err)
+	}
+	hash.Spec.Store = &v1.Store{Type: "s3"}
+	err = k8sClient.Update(ctx, hash)
+	if err != nil {
+		t.Error(err)
+	}
+	err = hashtestlogger.ReadUntilRegex("error",
+		"^Invalid path*")
 	if err != nil {
 		t.Error(err)
 	}
