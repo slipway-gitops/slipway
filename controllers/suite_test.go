@@ -16,7 +16,6 @@ limitations under the License.
 package controllers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -54,7 +53,7 @@ var (
 	ErrChannelTimeOut = errors.New("Timed out waiting for log entry")
 )
 
-func SetupTestGitRepo(ctx context.Context) error {
+func SetupTestEnv() error {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
 	}
@@ -79,6 +78,10 @@ func SetupTestGitRepo(ctx context.Context) error {
 	if k8sClient == nil {
 		return errors.New("Nil k8s client")
 	}
+	return nil
+}
+
+func SetupTestGitRepo() error {
 	stopCh = make(chan struct{})
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme,
@@ -86,7 +89,7 @@ func SetupTestGitRepo(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	gittestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 10)}
+	gittestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 100)}
 	gitcontrol = &GitRepoReconciler{
 		Client:     mgr.GetClient(),
 		Log:        gittestlogger.WithName("controllers").WithName("GitRepo"),
@@ -98,8 +101,20 @@ func SetupTestGitRepo(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	go mgr.Start(stopCh)
+	return nil
+}
 
-	hashtestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 10)}
+func SetupTestHash() error {
+	stopCh = make(chan struct{})
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return err
+	}
+
+	hashtestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 100)}
 	hashcontrol = &HashReconciler{
 		Client:     mgr.GetClient(),
 		Log:        hashtestlogger.WithName("controllers").WithName("Hash"),
@@ -115,9 +130,17 @@ func SetupTestGitRepo(ctx context.Context) error {
 	return nil
 }
 
-func TearDownTestGitRepo() error {
+func TearDownTestGitRepo() {
 	close(stopCh)
 	close(gittestlogger.Logs)
+}
+
+func TearDownTestHash() {
+	close(stopCh)
+	close(hashtestlogger.Logs)
+}
+
+func TearDownTestEnv() error {
 	return testEnv.Stop()
 }
 
@@ -256,4 +279,10 @@ func (t *TestLogger) WithValues(args ...interface{}) logr.Logger {
 		go t.writer("value", fmt.Sprint(v))
 	}
 	return t
+}
+
+func (t *TestLogger) Empty() {
+	for len(t.Logs) > 0 {
+		<-t.Logs
+	}
 }

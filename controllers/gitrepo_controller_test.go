@@ -13,18 +13,32 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	ctx := context.TODO()
-	err := SetupTestGitRepo(ctx)
+	err := SetupTestEnv()
 	if err != nil {
 		fmt.Println(err)
 	}
 	ex := m.Run()
-	err = TearDownTestGitRepo()
+	err = TearDownTestEnv()
 	if err != nil {
 		fmt.Println(err)
 	}
 	os.Exit(ex)
 
+}
+
+func TestAll(t *testing.T) {
+	err := SetupTestGitRepo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("TestGitRepoReconcile", testGitRepoReconcile)
+	TearDownTestGitRepo()
+	err = SetupTestHash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("TestHashReconcile", testHashReconcile)
+	TearDownTestHash()
 }
 
 func GetNames() error {
@@ -55,7 +69,7 @@ func GetValues(vals ...string) error {
 
 }
 
-func TestGitRepoReconcile(t *testing.T) {
+func testGitRepoReconcile(t *testing.T) {
 	err := GetNames()
 	if err != nil {
 		t.Error(err)
@@ -198,5 +212,27 @@ func TestGitRepoReconcile(t *testing.T) {
 	if hashListGet.Items[0].Spec.Operations[0].ReferenceTitle != "v1.1.0" {
 		t.Error("Expectected highest version v1.1.0")
 	}
-	//t.Error(litter.Sdump(hashListGet))
+	// Cleanup
+	gitRepoListGet := &v1.GitRepoList{}
+	err = k8sClient.List(ctx, gitRepoListGet)
+	if err != nil {
+		t.Error(err)
+	}
+	for _, g := range gitRepoListGet.Items {
+		err = k8sClient.Delete(ctx, &g)
+		if err != nil {
+			t.Error(err)
+		}
+	}
+	hashListGet = &v1.HashList{}
+	err = k8sClient.List(ctx, hashListGet)
+	if err != nil {
+		t.Error(err)
+	}
+	for _, h := range hashListGet.Items {
+		err = k8sClient.Delete(ctx, &h)
+		if err != nil {
+			t.Error(err)
+		}
+	}
 }
