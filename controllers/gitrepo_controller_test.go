@@ -112,7 +112,7 @@ func testGitRepoReconcile(t *testing.T) {
 	myKind.Spec.Uri = "git@github.com:slipway-gitops/slipway-example-app.git"
 	myKind.Spec.GitPath = "invalid"
 
-	err = k8sClient.Update(ctx, myKind)
+	err = isNotUpdateError(k8sClient.Update(ctx, myKind))
 	if err != nil {
 		t.Error(err)
 	}
@@ -134,7 +134,7 @@ func testGitRepoReconcile(t *testing.T) {
 			Transformers: []v1.Transformer{},
 		},
 	}
-	err = k8sClient.Update(ctx, myKind)
+	err = isNotUpdateError(k8sClient.Update(ctx, myKind))
 	if err != nil {
 		t.Error(err)
 	}
@@ -192,11 +192,7 @@ func testGitRepoReconcile(t *testing.T) {
 			Reference:    "v1.1.[0-9]",
 		},
 	}
-	err = k8sClient.Update(ctx, myKind)
-	if err != nil {
-		t.Error(err)
-	}
-	err = GetValues("gitrepo", "/testresource")
+	err = isNotUpdateError(k8sClient.Update(ctx, myKind))
 	if err != nil {
 		t.Error(err)
 	}

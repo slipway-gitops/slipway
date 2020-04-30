@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -142,6 +143,14 @@ func TearDownTestHash() {
 
 func TearDownTestEnv() error {
 	return testEnv.Stop()
+}
+
+func isNotUpdateError(err error) error {
+	updateError := "the object has been modified; please apply your changes to the latest version and try again"
+	if err != nil && strings.Contains(err.Error(), updateError) {
+		return nil
+	}
+	return err
 }
 
 type log struct {

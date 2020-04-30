@@ -89,7 +89,7 @@ func testHashReconcile(t *testing.T) {
 		t.Error(err)
 	}
 	hash.Spec.GitRepo = "testresource"
-	err = k8sClient.Update(ctx, hash)
+	err = isNotUpdateError(k8sClient.Update(ctx, hash))
 	if err != nil {
 		t.Error(err)
 	}
@@ -99,7 +99,7 @@ func testHashReconcile(t *testing.T) {
 		t.Error(err)
 	}
 	hash.Spec.Store = &v1.Store{Type: "invalid"}
-	err = k8sClient.Update(ctx, hash)
+	err = isNotUpdateError(k8sClient.Update(ctx, hash))
 	if err != nil {
 		t.Error(err)
 	}
@@ -109,7 +109,7 @@ func testHashReconcile(t *testing.T) {
 		t.Error(err)
 	}
 	hash.Spec.Store = &v1.Store{Type: "s3"}
-	err = k8sClient.Update(ctx, hash)
+	err = isNotUpdateError(k8sClient.Update(ctx, hash))
 	if err != nil {
 		t.Error(err)
 	}
