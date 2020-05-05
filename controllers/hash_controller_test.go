@@ -157,7 +157,8 @@ func testHashReconcile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if dep.ObjectMeta.OwnerReferences[0].Name != obj.Name() {
+	if len(dep.ObjectMeta.OwnerReferences) < 1 ||
+		dep.ObjectMeta.OwnerReferences[0].Name != obj.Name() {
 		t.Error("Expected Hash to own deployment")
 	}
 }
