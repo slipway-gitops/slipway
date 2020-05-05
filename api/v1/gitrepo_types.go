@@ -76,7 +76,7 @@ type Operation struct {
 }
 
 // OpType is the type of operation that will take place
-// +kubebuilder:validation:Enum=tag;branch;pull
+// +kubebuilder:validation:Enum=tag;branch;pull;highesttag
 type OpType string
 
 // Transformers are kustomize transformers available for contextual

@@ -22,10 +22,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/lithammer/shortuuid"
 	gitv1 "github.com/slipway-gitops/slipway/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -39,20 +42,22 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg        *rest.Config
-	k8sClient  client.Client
-	testEnv    *envtest.Environment
-	stopCh     chan struct{}
-	control    *GitRepoReconciler
-	testlogger *TestLogger
-	scheme     = runtime.NewScheme()
+	cfg            *rest.Config
+	k8sClient      client.Client
+	testEnv        *envtest.Environment
+	stopCh         chan struct{}
+	gitcontrol     *GitRepoReconciler
+	hashcontrol    *HashReconciler
+	gittestlogger  *TestLogger
+	hashtestlogger *TestLogger
+	scheme         = runtime.NewScheme()
 )
 
 var (
 	ErrChannelTimeOut = errors.New("Timed out waiting for log entry")
 )
 
-func SetupTestGitRepo(ctx context.Context) error {
+func SetupTestEnv() error {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
 	}
@@ -77,6 +82,10 @@ func SetupTestGitRepo(ctx context.Context) error {
 	if k8sClient == nil {
 		return errors.New("Nil k8s client")
 	}
+	return nil
+}
+
+func SetupTestGitRepo() error {
 	stopCh = make(chan struct{})
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme,
@@ -84,26 +93,58 @@ func SetupTestGitRepo(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	testlogger = &TestLogger{Timeout: 10000000000, Logs: make(chan log, 10)}
-	control = &GitRepoReconciler{
+	gittestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 100)}
+	gitcontrol = &GitRepoReconciler{
 		Client:     mgr.GetClient(),
-		Log:        testlogger.WithName("controllers").WithName("GitRepo"),
+		Log:        gittestlogger.WithName("controllers").WithName("GitRepo"),
 		recorder:   mgr.GetEventRecorderFor("gitrepo-controller"),
 		Scheme:     mgr.GetScheme(),
 		PluginPath: "../internal/bin/",
 	}
-	err = control.SetupWithManager(mgr)
+	err = gitcontrol.SetupWithManager(mgr)
 	if err != nil {
 		return err
 	}
-
 	go mgr.Start(stopCh)
 	return nil
 }
 
-func TearDownTestGitRepo() error {
+func SetupTestHash() error {
+	stopCh = make(chan struct{})
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return err
+	}
+
+	hashtestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 100)}
+	hashcontrol = &HashReconciler{
+		Client:     mgr.GetClient(),
+		Log:        hashtestlogger.WithName("controllers").WithName("Hash"),
+		recorder:   mgr.GetEventRecorderFor("hash-controller"),
+		Scheme:     mgr.GetScheme(),
+		PluginPath: "../internal/bin/",
+	}
+	err = hashcontrol.SetupWithManager(mgr)
+	if err != nil {
+		return err
+	}
+	go mgr.Start(stopCh)
+	return nil
+}
+
+func TearDownTestGitRepo() {
 	close(stopCh)
-	close(testlogger.Logs)
+	close(gittestlogger.Logs)
+}
+
+func TearDownTestHash() {
+	close(stopCh)
+	close(hashtestlogger.Logs)
+}
+
+func TearDownTestEnv() error {
 	return testEnv.Stop()
 }
 
@@ -242,4 +283,94 @@ func (t *TestLogger) WithValues(args ...interface{}) logr.Logger {
 		go t.writer("value", fmt.Sprint(v))
 	}
 	return t
+}
+
+func (t *TestLogger) Empty() {
+	for len(t.Logs) > 0 {
+		<-t.Logs
+	}
+}
+
+func NewGitHandler(r *gitv1.GitRepo) GitHandler {
+	return GitHandler{
+		Object: r,
+		ctx:    context.TODO(),
+	}
+}
+
+type GitHandler struct {
+	Object *gitv1.GitRepo
+	ctx    context.Context
+}
+
+func (g *GitHandler) Create() error {
+	if g.Object.GetName() != "" {
+		err := g.Clean()
+		if err != nil {
+			return err
+		}
+	}
+	g.Object.ObjectMeta = metav1.ObjectMeta{
+		Name: (strings.ToLower(shortuuid.New())),
+	}
+	return k8sClient.Create(g.ctx, g.Object)
+}
+
+func (g *GitHandler) Clean() error {
+	return k8sClient.Delete(g.ctx, g.Object)
+}
+
+func (g *GitHandler) Name() string {
+	return g.Object.GetName()
+}
+
+func (g *GitHandler) NamespacedName() string {
+	return fmt.Sprintf("%s/%s", g.Object.GetNamespace(), g.Object.GetName())
+}
+
+func (g *GitHandler) Get() error {
+	u := &gitv1.GitRepo{}
+	return k8sClient.Get(g.ctx, client.ObjectKey{Name: g.Object.ObjectMeta.Name}, u)
+}
+
+func NewHashHandler(r *gitv1.Hash) HashHandler {
+	return HashHandler{
+		Object: r,
+		ctx:    context.TODO(),
+	}
+}
+
+type HashHandler struct {
+	Object *gitv1.Hash
+	ctx    context.Context
+}
+
+func (g *HashHandler) Create() error {
+	if g.Object.GetName() != "" {
+		err := g.Clean()
+		if err != nil {
+			return err
+		}
+	}
+	g.Object.ObjectMeta = metav1.ObjectMeta{
+		Name: (strings.ToLower(shortuuid.New())),
+	}
+	return k8sClient.Create(g.ctx, g.Object)
+}
+
+func (g *HashHandler) Clean() error {
+	return k8sClient.Delete(g.ctx, g.Object)
+}
+
+func (g *HashHandler) Name() string {
+	return g.Object.GetName()
+}
+
+func (g *HashHandler) NamespacedName() string {
+	return fmt.Sprintf("%s/%s", g.Object.GetNamespace(), g.Object.GetName())
+}
+
+func (g *HashHandler) Get() error {
+	u := &gitv1.Hash{}
+	return k8sClient.Get(g.ctx, client.ObjectKey{Name: g.Object.ObjectMeta.Name}, u)
 }

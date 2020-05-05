@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -63,6 +64,7 @@ type HashReconciler struct {
 }
 
 var (
+	ErrEmptyPath      = errors.New("No path set")
 	annotationsPlugin = &builtins.AnnotationsTransformerPlugin{
 		Annotations: make(map[string]string),
 		FieldSpecs: []ktypes.FieldSpec{
@@ -182,6 +184,10 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// Range over all the sorted operations
 	for _, operation := range hash.Spec.Operations {
 
+		if operation.Path == "" {
+			log.Error(ErrEmptyPath, "Invalid path", "operation", operation)
+			continue
+		}
 		// If HashSpec is set, set the reference to the end of the url
 		path := operation.Path
 		if operation.HashPath {

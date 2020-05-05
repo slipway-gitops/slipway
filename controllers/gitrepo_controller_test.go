@@ -9,17 +9,15 @@ import (
 
 	v1 "github.com/slipway-gitops/slipway/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestMain(m *testing.M) {
-	ctx := context.TODO()
-	err := SetupTestGitRepo(ctx)
+	err := SetupTestEnv()
 	if err != nil {
 		fmt.Println(err)
 	}
 	ex := m.Run()
-	err = TearDownTestGitRepo()
+	err = TearDownTestEnv()
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -27,12 +25,27 @@ func TestMain(m *testing.M) {
 
 }
 
+func TestAll(t *testing.T) {
+	err := SetupTestGitRepo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("TestGitRepoReconcile", testGitRepoReconcile)
+	TearDownTestGitRepo()
+	err = SetupTestHash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("TestHashReconcile", testHashReconcile)
+	TearDownTestHash()
+}
+
 func GetNames() error {
-	err := testlogger.ReadUntilLog("name", "controllers")
+	err := gittestlogger.ReadUntilLog("name", "controllers")
 	if err != nil {
 		return err
 	}
-	err = testlogger.ReadUntilLog("name", "GitRepo")
+	err = gittestlogger.ReadUntilLog("name", "GitRepo")
 	if err != nil {
 		return err
 	}
@@ -42,29 +55,26 @@ func GetNames() error {
 func GetValues(vals ...string) error {
 	var retvals []string
 	for _ = range vals {
-		val, err := testlogger.ReadUntilType("value")
+		val, err := gittestlogger.ReadUntilType("value")
 		if err != nil {
 			return err
 		}
 		retvals = append(retvals, val)
 	}
 	if !reflect.DeepEqual(retvals, vals) {
-		return fmt.Errorf("Expected values %v", vals)
+		return fmt.Errorf("Expected values %v got %v", vals, retvals)
 	}
 	return nil
 
 }
 
-func TestGitRepoReconcile(t *testing.T) {
+func testGitRepoReconcile(t *testing.T) {
+	ctx := context.TODO()
 	err := GetNames()
 	if err != nil {
 		t.Error(err)
 	}
-	ctx := context.TODO()
 	myKind := &v1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testresource",
-		},
 		Spec: v1.GitRepoSpec{
 			Uri: "thisisbasicinvalid",
 			Operations: []v1.Operation{
@@ -76,37 +86,30 @@ func TestGitRepoReconcile(t *testing.T) {
 			},
 		},
 	}
-	err = k8sClient.Create(ctx, myKind)
+	obj := NewGitHandler(myKind)
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
-	err = GetValues("gitrepo", "/testresource")
+	err = GetValues("gitrepo", obj.NamespacedName())
 	if err != nil {
 		t.Error(err)
 	}
-	err = testlogger.ReadUntilLog("error", "remote access error: repository not found -- []")
+	err = gittestlogger.ReadUntilLog("error", "remote access error: repository not found -- []")
 	if err != nil {
 		t.Error(err)
 	}
-	myKindGet := &v1.GitRepo{}
-	err = k8sClient.Get(ctx, client.ObjectKey{
-		Name: "testresource",
-	}, myKindGet)
+	err = obj.Get()
 	if err != nil {
 		t.Error(err)
 	}
 	myKind.Spec.Uri = "git@github.com:slipway-gitops/slipway-example-app.git"
 	myKind.Spec.GitPath = "invalid"
-
-	err = k8sClient.Update(ctx, myKind)
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
-	err = GetValues("gitrepo", "/testresource")
-	if err != nil {
-		t.Error(err)
-	}
-	err = testlogger.ReadUntilLog("error", "No plugin for this gitpath type: <nil> -- []")
+	err = gittestlogger.ReadUntilLog("error", "No plugin for this gitpath type: <nil> -- []")
 	if err != nil {
 		t.Error(err)
 	}
@@ -120,11 +123,11 @@ func TestGitRepoReconcile(t *testing.T) {
 			Transformers: []v1.Transformer{},
 		},
 	}
-	err = k8sClient.Update(ctx, myKind)
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
-	err = testlogger.ReadUntilRegex("info", `^Operation result: \[created Hash for GitRepo*`)
+	err = gittestlogger.ReadUntilRegex("info", `^Operation result: \[created Hash for GitRepo*`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -150,7 +153,7 @@ func TestGitRepoReconcile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	err = testlogger.ReadUntilRegex("info", "^deleted old hash*")
+	err = gittestlogger.ReadUntilRegex("info", "^deleted old hash*")
 	if err != nil {
 		t.Error(err)
 	}
@@ -162,5 +165,50 @@ func TestGitRepoReconcile(t *testing.T) {
 	if len(hashListGet.Items) != 1 {
 		t.Error("Expected one hash item returned")
 	}
-	//t.Error(litter.Sdump(hashListGet))
+	myKind.Spec.Operations = []v1.Operation{
+		v1.Operation{
+			Name:         "highesttest",
+			Path:         "git@github.com:slipway-gitops/slipway-example-app.git//kustomize/base",
+			Transformers: []v1.Transformer{},
+			Type:         v1.OpType("highesttag"),
+			Reference:    "v1.1.[0-9]",
+		},
+	}
+	err = obj.Create()
+	if err != nil {
+		t.Error(err)
+	}
+	err = gittestlogger.ReadUntilRegex("info", `^Operation result: \[created Hash for GitRepo*`)
+	if err != nil {
+		t.Error(err)
+	}
+	hashListGet = &v1.HashList{}
+	err = k8sClient.List(ctx, hashListGet)
+	if err != nil {
+		t.Error(err)
+	}
+	found := false
+	for _, h := range hashListGet.Items {
+		if h.Spec.Operations[0].ReferenceTitle == "v1.1.0" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("Expectected highest version v1.1.0")
+	}
+	err = obj.Clean()
+	if err != nil {
+		t.Error(err)
+	}
+	hashListGet = &v1.HashList{}
+	err = k8sClient.List(ctx, hashListGet)
+	if err != nil {
+		t.Error(err)
+	}
+	for _, h := range hashListGet.Items {
+		err = k8sClient.Delete(ctx, &h)
+		if err != nil {
+			t.Error(err)
+		}
+	}
 }
