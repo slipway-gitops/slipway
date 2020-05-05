@@ -198,10 +198,11 @@ func (r *HashReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// https://godoc.org/sigs.k8s.io/kustomize/api/resmap#ResMap
 		m, err := k.Run(path)
 		if err != nil {
-			log.Error(err, "unable to fetch kustomize manifests", "operation", operation)
+			log.Error(err, "Unable to fetch kustomize manifests", "operation", operation)
 			return ctrl.Result{}, err
+		} else {
+			log.Info("Successfully pulled", path)
 		}
-
 		// Run all transformers against the ResMap
 		for _, t := range operation.Transformers {
 
