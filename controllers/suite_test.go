@@ -93,7 +93,7 @@ func SetupTestGitRepo() error {
 	if err != nil {
 		return err
 	}
-	gittestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 100)}
+	gittestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 500)}
 	gitcontrol = &GitRepoReconciler{
 		Client:     mgr.GetClient(),
 		Log:        gittestlogger.WithName("controllers").WithName("GitRepo"),
@@ -118,7 +118,7 @@ func SetupTestHash() error {
 		return err
 	}
 
-	hashtestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 100)}
+	hashtestlogger = &TestLogger{Timeout: 20000000000, Logs: make(chan log, 500)}
 	hashcontrol = &HashReconciler{
 		Client:     mgr.GetClient(),
 		Log:        hashtestlogger.WithName("controllers").WithName("Hash"),
