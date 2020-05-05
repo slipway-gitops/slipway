@@ -16,6 +16,7 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -25,7 +26,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/lithammer/shortuuid"
 	gitv1 "github.com/slipway-gitops/slipway/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -143,14 +146,6 @@ func TearDownTestHash() {
 
 func TearDownTestEnv() error {
 	return testEnv.Stop()
-}
-
-func isNotUpdateError(err error) error {
-	updateError := "the object has been modified; please apply your changes to the latest version and try again"
-	if err != nil && strings.Contains(err.Error(), updateError) {
-		return nil
-	}
-	return err
 }
 
 type log struct {
@@ -294,4 +289,88 @@ func (t *TestLogger) Empty() {
 	for len(t.Logs) > 0 {
 		<-t.Logs
 	}
+}
+
+func NewGitHandler(r *gitv1.GitRepo) GitHandler {
+	return GitHandler{
+		Object: r,
+		ctx:    context.TODO(),
+	}
+}
+
+type GitHandler struct {
+	Object *gitv1.GitRepo
+	ctx    context.Context
+}
+
+func (g *GitHandler) Create() error {
+	if g.Object.GetName() != "" {
+		err := g.Clean()
+		if err != nil {
+			return err
+		}
+	}
+	g.Object.ObjectMeta = metav1.ObjectMeta{
+		Name: (strings.ToLower(shortuuid.New())),
+	}
+	return k8sClient.Create(g.ctx, g.Object)
+}
+
+func (g *GitHandler) Clean() error {
+	return k8sClient.Delete(g.ctx, g.Object)
+}
+
+func (g *GitHandler) Name() string {
+	return g.Object.GetName()
+}
+
+func (g *GitHandler) NamespacedName() string {
+	return fmt.Sprintf("%s/%s", g.Object.GetNamespace(), g.Object.GetName())
+}
+
+func (g *GitHandler) Get() error {
+	u := &gitv1.GitRepo{}
+	return k8sClient.Get(g.ctx, client.ObjectKey{Name: g.Object.ObjectMeta.Name}, u)
+}
+
+func NewHashHandler(r *gitv1.Hash) HashHandler {
+	return HashHandler{
+		Object: r,
+		ctx:    context.TODO(),
+	}
+}
+
+type HashHandler struct {
+	Object *gitv1.Hash
+	ctx    context.Context
+}
+
+func (g *HashHandler) Create() error {
+	if g.Object.GetName() != "" {
+		err := g.Clean()
+		if err != nil {
+			return err
+		}
+	}
+	g.Object.ObjectMeta = metav1.ObjectMeta{
+		Name: (strings.ToLower(shortuuid.New())),
+	}
+	return k8sClient.Create(g.ctx, g.Object)
+}
+
+func (g *HashHandler) Clean() error {
+	return k8sClient.Delete(g.ctx, g.Object)
+}
+
+func (g *HashHandler) Name() string {
+	return g.Object.GetName()
+}
+
+func (g *HashHandler) NamespacedName() string {
+	return fmt.Sprintf("%s/%s", g.Object.GetNamespace(), g.Object.GetName())
+}
+
+func (g *HashHandler) Get() error {
+	u := &gitv1.Hash{}
+	return k8sClient.Get(g.ctx, client.ObjectKey{Name: g.Object.ObjectMeta.Name}, u)
 }

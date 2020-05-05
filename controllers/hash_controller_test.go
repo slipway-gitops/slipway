@@ -1,13 +1,11 @@
 package controllers
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"testing"
 
 	v1 "github.com/slipway-gitops/slipway/api/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetHashNames() error {
@@ -40,11 +38,7 @@ func GetHashValues(vals ...string) error {
 
 func testHashReconcile(t *testing.T) {
 
-	ctx := context.TODO()
 	hash := &v1.Hash{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testhash",
-		},
 		Spec: v1.HashSpec{
 			GitRepo: "notvalid",
 			Operations: []v1.Operation{
@@ -56,11 +50,12 @@ func testHashReconcile(t *testing.T) {
 			},
 		},
 	}
-	err := k8sClient.Create(ctx, hash)
+	obj := NewHashHandler(hash)
+	err := obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
-	err = GetHashValues("hash", "/testhash")
+	err = GetHashValues("hash", fmt.Sprintf("/%s", hash.ObjectMeta.Name))
 	if err != nil {
 		t.Error(err)
 	}
@@ -70,9 +65,6 @@ func testHashReconcile(t *testing.T) {
 		t.Error(err)
 	}
 	repo := &v1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testresource",
-		},
 		Spec: v1.GitRepoSpec{
 			Uri: "thisisbasicinvalid",
 			Operations: []v1.Operation{
@@ -84,12 +76,13 @@ func testHashReconcile(t *testing.T) {
 			},
 		},
 	}
-	err = k8sClient.Create(ctx, repo)
+	gitobj := NewGitHandler(repo)
+	err = gitobj.Create()
 	if err != nil {
 		t.Error(err)
 	}
-	hash.Spec.GitRepo = "testresource"
-	err = isNotUpdateError(k8sClient.Update(ctx, hash))
+	hash.Spec.GitRepo = gitobj.Name()
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
@@ -99,7 +92,7 @@ func testHashReconcile(t *testing.T) {
 		t.Error(err)
 	}
 	hash.Spec.Store = &v1.Store{Type: "invalid"}
-	err = isNotUpdateError(k8sClient.Update(ctx, hash))
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
@@ -109,7 +102,7 @@ func testHashReconcile(t *testing.T) {
 		t.Error(err)
 	}
 	hash.Spec.Store = &v1.Store{Type: "s3"}
-	err = isNotUpdateError(k8sClient.Update(ctx, hash))
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}

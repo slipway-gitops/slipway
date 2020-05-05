@@ -9,7 +9,6 @@ import (
 
 	v1 "github.com/slipway-gitops/slipway/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestMain(m *testing.M) {
@@ -63,22 +62,19 @@ func GetValues(vals ...string) error {
 		retvals = append(retvals, val)
 	}
 	if !reflect.DeepEqual(retvals, vals) {
-		return fmt.Errorf("Expected values %v", vals)
+		return fmt.Errorf("Expected values %v got %v", vals, retvals)
 	}
 	return nil
 
 }
 
 func testGitRepoReconcile(t *testing.T) {
+	ctx := context.TODO()
 	err := GetNames()
 	if err != nil {
 		t.Error(err)
 	}
-	ctx := context.TODO()
 	myKind := &v1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testresource",
-		},
 		Spec: v1.GitRepoSpec{
 			Uri: "thisisbasicinvalid",
 			Operations: []v1.Operation{
@@ -90,11 +86,12 @@ func testGitRepoReconcile(t *testing.T) {
 			},
 		},
 	}
-	err = k8sClient.Create(ctx, myKind)
+	obj := NewGitHandler(myKind)
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
-	err = GetValues("gitrepo", "/testresource")
+	err = GetValues("gitrepo", obj.NamespacedName())
 	if err != nil {
 		t.Error(err)
 	}
@@ -102,21 +99,13 @@ func testGitRepoReconcile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	myKindGet := &v1.GitRepo{}
-	err = k8sClient.Get(ctx, client.ObjectKey{
-		Name: "testresource",
-	}, myKindGet)
+	err = obj.Get()
 	if err != nil {
 		t.Error(err)
 	}
 	myKind.Spec.Uri = "git@github.com:slipway-gitops/slipway-example-app.git"
 	myKind.Spec.GitPath = "invalid"
-
-	err = isNotUpdateError(k8sClient.Update(ctx, myKind))
-	if err != nil {
-		t.Error(err)
-	}
-	err = GetValues("gitrepo", "/testresource")
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
@@ -134,7 +123,7 @@ func testGitRepoReconcile(t *testing.T) {
 			Transformers: []v1.Transformer{},
 		},
 	}
-	err = isNotUpdateError(k8sClient.Update(ctx, myKind))
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
@@ -176,13 +165,6 @@ func testGitRepoReconcile(t *testing.T) {
 	if len(hashListGet.Items) != 1 {
 		t.Error("Expected one hash item returned")
 	}
-	myKind = &v1.GitRepo{}
-	err = k8sClient.Get(ctx, client.ObjectKey{
-		Name: "testresource",
-	}, myKind)
-	if err != nil {
-		t.Error(err)
-	}
 	myKind.Spec.Operations = []v1.Operation{
 		v1.Operation{
 			Name:         "highesttest",
@@ -192,7 +174,7 @@ func testGitRepoReconcile(t *testing.T) {
 			Reference:    "v1.1.[0-9]",
 		},
 	}
-	err = isNotUpdateError(k8sClient.Update(ctx, myKind))
+	err = obj.Create()
 	if err != nil {
 		t.Error(err)
 	}
@@ -205,20 +187,18 @@ func testGitRepoReconcile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if hashListGet.Items[0].Spec.Operations[0].ReferenceTitle != "v1.1.0" {
+	found := false
+	for _, h := range hashListGet.Items {
+		if h.Spec.Operations[0].ReferenceTitle == "v1.1.0" {
+			found = true
+		}
+	}
+	if !found {
 		t.Error("Expectected highest version v1.1.0")
 	}
-	// Cleanup
-	gitRepoListGet := &v1.GitRepoList{}
-	err = k8sClient.List(ctx, gitRepoListGet)
+	err = obj.Clean()
 	if err != nil {
 		t.Error(err)
-	}
-	for _, g := range gitRepoListGet.Items {
-		err = k8sClient.Delete(ctx, &g)
-		if err != nil {
-			t.Error(err)
-		}
 	}
 	hashListGet = &v1.HashList{}
 	err = k8sClient.List(ctx, hashListGet)
